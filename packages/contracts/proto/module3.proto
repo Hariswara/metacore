@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+// Module 3 — Cost-Aware Metacognitive Gating & Meta-Policy.
+// Owner: Saabir S. (IT23432598). Consumer: M4.
+package metacore.module3.v1;
+
+option go_package = "github.com/metacore/contracts/go/module3/v1;module3v1";
+
+import "common.proto";
+
+// The single action emitted per step, from either System 1 or System 2. Every field is something
+// M4 can apply to the digital twin — nothing here is advisory.
+message ProposedControlAction {
+  metacore.common.v1.Envelope envelope = 1;
+  string action_id = 2;
+  ProcessPath origin = 3;
+
+  repeated BreakerCommand breakers = 4;
+  repeated LoadShedCommand load_shed = 5;
+  repeated DispatchSetpoint dispatch = 6;
+
+  string rationale = 7; // short human-readable summary for the dashboard
+}
+
+enum ProcessPath {
+  PROCESS_PATH_UNSPECIFIED = 0;
+  PROCESS_PATH_SYSTEM1 = 1; // fast rule-based reactive path
+  PROCESS_PATH_SYSTEM2 = 2; // deliberative survival optimisation
+}
+
+message BreakerCommand {
+  string edge_id = 1;
+  bool closed = 2;
+}
+
+message LoadShedCommand {
+  string node_id = 1;
+  float shed_fraction = 2; // 0..1
+  uint32 priority_tier = 3; // 1 = most critical, never shed before higher tiers
+}
+
+message DispatchSetpoint {
+  string node_id = 1;
+  double p_kw = 2;
+  double q_kvar = 3;
+}
+
+// Emitted alongside every action for audit, ablation and the dashboard gating timeline.
+message GatingDecision {
+  metacore.common.v1.Envelope envelope = 1;
+  string action_id = 2;
+  ProcessPath chosen = 3;
+  float epistemic_at_decision = 4;
+  float expected_survival_benefit = 5;
+  float deliberation_cost = 6;
+  double latency_ms = 7;
+  bool budget_exhausted_fallback = 8; // true when System 1 was taken because the budget ran out
+}
+
+service GatingService {
+  rpc StreamAction(GatingRequest) returns (stream ProposedControlAction);
+  rpc StreamDecision(GatingRequest) returns (stream GatingDecision);
+  rpc Health(HealthRequest) returns (metacore.common.v1.Health);
+}
+
+message GatingRequest { metacore.common.v1.ScenarioRef scenario = 1; }
+message HealthRequest {}

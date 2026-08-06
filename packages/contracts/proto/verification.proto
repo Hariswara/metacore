@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+// Module 4 — Abductive Physics-Informed Verification & Semantic Translation.
+// Owner: Hariswara S. (IT23291782). Consumers: M3 (verdict), M2 (rejection trace), dashboard.
+//
+// DETERMINISTIC. The verdict is produced by an OpenDSS power-flow solve against a safety
+// specification. Nothing in the decision path is learned.
+package metacore.verification.v1;
+
+option go_package = "github.com/metacore/contracts/go/verification/v1;verificationv1";
+
+import "common.proto";
+import "module3.proto";
+
+message VerificationRequest {
+  metacore.common.v1.Envelope envelope = 1;
+  metacore.module3.v1.ProposedControlAction action = 2;
+  string topology_id = 3;
+}
+
+message VerificationVerdict {
+  metacore.common.v1.Envelope envelope = 1;
+  string action_id = 2;
+  Decision decision = 3;
+  repeated Violation violations = 4;  // empty on APPROVE
+  double solve_latency_ms = 5;
+  string spec_version = 6;            // the safety specification this was judged against
+  string network_model_version = 7;
+}
+
+enum Decision {
+  DECISION_UNSPECIFIED = 0;
+  DECISION_APPROVE = 1;
+  DECISION_REJECT = 2;
+}
+
+// Structured violation evidence — the analytical core of the abductive claim, and the payload
+// the causal log is generated from. A generated explanation may only reference entities present
+// here; anything else is an ungrounded claim.
+message Violation {
+  ViolationType type = 1;
+  string element_id = 2;        // offending bus or line
+  double measured = 3;
+  double limit = 4;
+  double margin_fraction = 5;   // signed: how far past the limit
+  // Which part of the proposed action most plausibly caused this (attribution, not certainty).
+  string attributed_component = 6;
+}
+
+enum ViolationType {
+  VIOLATION_TYPE_UNSPECIFIED = 0;
+  VIOLATION_TYPE_UNDERVOLTAGE = 1;
+  VIOLATION_TYPE_OVERVOLTAGE = 2;
+  VIOLATION_TYPE_THERMAL_OVERLOAD = 3;
+  VIOLATION_TYPE_NON_CONVERGENCE = 4;
+  VIOLATION_TYPE_MALFORMED_ACTION = 5;
+}
+
+// M4 -> M2. Feeds back into the competence signal so a rejection informs future uncertainty.
+message RejectionTrace {
+  metacore.common.v1.Envelope envelope = 1;
+  string action_id = 2;
+  repeated Violation violations = 3;
+  float severity = 4; // 0..1, derived from margin_fraction across violations
+}
+
+// M4 -> operator dashboard. Grounded in the structured evidence above.
+message CausalLog {
+  metacore.common.v1.Envelope envelope = 1;
+  string action_id = 2;
+  string text = 3;
+  repeated string grounded_entities = 4; // must be a subset of the violation element_ids
+  Generator generator = 5;
+}
+
+enum Generator {
+  GENERATOR_UNSPECIFIED = 0;
+  GENERATOR_TEMPLATE = 1;   // deterministic, the default
+  GENERATOR_CONSTRAINED = 2; // learned but grounding-checked; never part of the decision
+}
+
+service VerificationService {
+  // Blocking. The orchestrator waits on this; the firewall is not bypassable.
+  rpc Verify(VerificationRequest) returns (VerificationVerdict);
+  rpc StreamRejections(RejectionRequest) returns (stream RejectionTrace);
+  rpc StreamCausalLogs(RejectionRequest) returns (stream CausalLog);
+  rpc Health(HealthRequest) returns (metacore.common.v1.Health);
+}
+
+message RejectionRequest { metacore.common.v1.ScenarioRef scenario = 1; }
+message HealthRequest {}

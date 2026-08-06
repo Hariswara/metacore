@@ -1,0 +1,29 @@
+# The boundary lane. Runs deterministic-core in isolation, on Linux, with pinned OpenDSS —
+# so a firewall verdict is never operating-system dependent, and an ML dependency can never
+# sneak in unnoticed.
+name: deterministic-core
+
+on:
+  push:
+    paths: ["deterministic-core/**", "infra/ci/check_core_purity.sh", ".github/workflows/deterministic-core.yml"]
+  pull_request:
+
+jobs:
+  purity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert no ML dependency
+        run: bash infra/ci/check_core_purity.sh
+
+  physics-tests:
+    runs-on: ubuntu-latest
+    needs: purity
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install uv
+      # --isolated: the core is resolved on its own, never against the learned workspace
+      - run: uv run --isolated --directory deterministic-core/module4_verification pytest -q
+      - run: uv run --isolated --directory deterministic-core/module4_semantic_translation pytest -q

@@ -1,0 +1,64 @@
+# Single dev entrypoint for the polyglot workspace.
+# Each task fans out to language-native tooling; nothing here reimplements a build system.
+version: "3"
+
+tasks:
+  setup:
+    desc: Install workspace dependencies for every language lane
+    cmds:
+      - uv sync --all-packages
+      - go work sync
+      - pnpm install
+
+  proto:
+    desc: Regenerate Python / Go / TS stubs from packages/contracts/proto
+    dir: packages/contracts
+    cmds:
+      - buf lint
+      - buf generate
+
+  dev:
+    desc: Bring up the default compose profile
+    cmds:
+      - docker compose --profile default up --build
+
+  test:
+    desc: Run every test lane
+    cmds:
+      - task: test:py
+      - task: test:core
+      - task: test:go
+      - task: test:web
+
+  test:py:
+    desc: Python tests for the learned services and gateway
+    cmds:
+      - uv run pytest services packages
+
+  test:core:
+    desc: Deterministic core tests, isolated from the learned services
+    dir: deterministic-core
+    cmds:
+      - uv run --isolated pytest .
+
+  test:go:
+    cmds:
+      - go test ./...
+
+  test:web:
+    dir: apps/dashboard
+    cmds:
+      - pnpm test --run
+
+  lint:
+    desc: Lint every language lane
+    cmds:
+      - uv run ruff check .
+      - go vet ./...
+      - pnpm -r lint
+      - bash infra/ci/check_core_purity.sh
+
+  audit:core:
+    desc: Assert the learned/deterministic boundary still holds
+    cmds:
+      - bash infra/ci/check_core_purity.sh

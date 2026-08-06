@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package metacore.common.v1;
+
+option go_package = "github.com/metacore/contracts/go/common/v1;commonv1";
+
+import "google/protobuf/timestamp.proto";
+
+// Every cross-module message carries this so a consumer can detect a schema it was not built for.
+message SchemaVersion {
+  uint32 major = 1;
+  uint32 minor = 2;
+}
+
+// Data-quality flags travel with the state, never stripped. Module 2's epistemic uncertainty
+// depends on being able to see a gap; imputed data presented as observed would hide it.
+enum Quality {
+  QUALITY_UNSPECIFIED = 0;
+  QUALITY_OBSERVED = 1;    // measured
+  QUALITY_INTERPOLATED = 2; // filled, and explicitly marked as filled
+  QUALITY_MISSING = 3;      // absent — downstream must treat as unknown, not as zero
+  QUALITY_STALE = 4;        // last known value, past its freshness budget
+}
+
+// Per-feature missingness mask accompanying any fused observation vector.
+message QualityMask {
+  repeated Quality per_feature = 1;
+  float observed_fraction = 2; // convenience: share of features with QUALITY_OBSERVED
+}
+
+// Identifies a replayable episode from the shared ID/OOD scenario library (owner: M1).
+message ScenarioRef {
+  string scenario_id = 1;      // e.g. "ditwah-2025-delft"
+  string library_version = 2;
+  bool out_of_distribution = 3; // label used for M2's OOD evaluation
+}
+
+message Envelope {
+  SchemaVersion schema_version = 1;
+  google.protobuf.Timestamp emitted_at = 2;
+  string producer = 3;          // "module1", "module2", ...
+  ScenarioRef scenario = 4;     // set during replay; empty in live operation
+  string trace_id = 5;          // correlates one step across all four modules
+}
+
+message Health {
+  bool ready = 1;
+  string detail = 2;
+  double last_step_latency_ms = 3;
+}

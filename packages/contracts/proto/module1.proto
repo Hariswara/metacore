@@ -1,0 +1,129 @@
+syntax = "proto3";
+
+// Module 1 — Multi-Modal Spatiotemporal State Representation.
+// Owner: Zayan M.F.M (IT23248212). Consumers: M2 (state), M3 (system context), M4 (topology).
+package metacore.module1.v1;
+
+option go_package = "github.com/metacore/contracts/go/module1/v1;module1v1";
+
+import "common.proto";
+
+// ---------------------------------------------------------------- M1 -> M2
+// The state representation. Frozen before the live stream exists so M2's evidential head can be
+// sized against a real schema rather than a guess.
+message StateRepresentation {
+  metacore.common.v1.Envelope envelope = 1;
+
+  uint32 node_count = 2;
+  uint32 embedding_dim = 3;
+  // Flattened row-major [node_count x embedding_dim] learned node embedding.
+  repeated float node_embedding = 4;
+  // Optional pooled graph-level embedding.
+  repeated float graph_embedding = 5;
+
+  // Engineered features kept alongside the embedding so downstream ablations can use either.
+  repeated string feature_names = 6;
+  repeated float node_features = 7; // [node_count x len(feature_names)]
+
+  metacore.common.v1.QualityMask quality = 8;
+  // True when one or more modalities are absent (e.g. comms blackout). Never silently imputed.
+  bool degraded = 9;
+}
+
+// ---------------------------------------------------------------- M1 -> M4
+// The canonical network model. M1 and M4 must instantiate an identical physical state, so the
+// topology is owned in one place and versioned.
+message GridTopology {
+  metacore.common.v1.Envelope envelope = 1;
+  string topology_id = 2;      // e.g. "delft-3island-v1"
+  string opendss_master_file = 3;
+  repeated Node nodes = 4;
+  repeated Edge edges = 5;
+}
+
+message Node {
+  string node_id = 1;
+  AssetType asset_type = 2;
+  double nominal_kv = 3;
+  bool critical_load = 4;
+  // Published as arbitrary spatial offsets, never true coordinates (data governance).
+  double x_offset = 5;
+  double y_offset = 6;
+}
+
+message Edge {
+  string edge_id = 1;
+  string from_node = 2;
+  string to_node = 3;
+  double length_km = 4;
+  double ampacity_a = 5;
+}
+
+enum AssetType {
+  ASSET_TYPE_UNSPECIFIED = 0;
+  ASSET_TYPE_BUS = 1;
+  ASSET_TYPE_PV = 2;
+  ASSET_TYPE_WIND = 3;
+  ASSET_TYPE_BESS = 4;
+  ASSET_TYPE_DIESEL = 5;
+  ASSET_TYPE_LOAD = 6;
+}
+
+// The electrical snapshot M4 loads into its digital twin.
+message GridStateSnapshot {
+  metacore.common.v1.Envelope envelope = 1;
+  string topology_id = 2;
+  repeated NodeState node_states = 3;
+  double update_period_s = 4;
+}
+
+message NodeState {
+  string node_id = 1;
+  double voltage_pu = 2;
+  double p_kw = 3;
+  double q_kvar = 4;
+  double soc_fraction = 5; // storage only
+}
+
+// ---------------------------------------------------------------- M1 -> M3
+// Secondary input to the Meta-RL gate state, alongside M2's uncertainty scalar.
+message SystemContext {
+  metacore.common.v1.Envelope envelope = 1;
+  float max_node_vulnerability = 2;  // 0..1
+  float mean_node_vulnerability = 3;
+  repeated string top_at_risk_nodes = 4;
+  float time_to_hazard_onset_min = 5; // negative once the hazard has arrived
+  HazardSeverity severity = 6;
+}
+
+enum HazardSeverity {
+  HAZARD_SEVERITY_UNSPECIFIED = 0;
+  HAZARD_SEVERITY_NORMAL = 1;
+  HAZARD_SEVERITY_ELEVATED = 2;
+  HAZARD_SEVERITY_SEVERE = 3;
+  HAZARD_SEVERITY_EXTREME = 4;
+}
+
+// Per-node forecast for the dashboard map view.
+message VulnerabilityForecast {
+  metacore.common.v1.Envelope envelope = 1;
+  uint32 horizon_steps = 2;
+  repeated NodeVulnerability nodes = 3;
+}
+
+message NodeVulnerability {
+  string node_id = 1;
+  repeated float score_per_horizon = 2; // 0..1, t+1 .. t+horizon_steps
+}
+
+service StateRepresentationService {
+  rpc GetTopology(TopologyRequest) returns (GridTopology);
+  rpc StreamState(StateRequest) returns (stream StateRepresentation);
+  rpc StreamSnapshot(StateRequest) returns (stream GridStateSnapshot);
+  rpc StreamContext(StateRequest) returns (stream SystemContext);
+  rpc Health(HealthRequest) returns (metacore.common.v1.Health);
+}
+
+message TopologyRequest { string topology_id = 1; }
+message StateRequest { metacore.common.v1.ScenarioRef scenario = 1; }
+message HealthRequest {}

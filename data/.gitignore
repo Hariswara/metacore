@@ -1,0 +1,6 @@
+raw/**
+processed/**
+external/**
+!**/.gitkeep
+!README.md
+!dvc.yaml

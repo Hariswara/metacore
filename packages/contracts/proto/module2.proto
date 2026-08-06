@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+// Module 2 — Agentic Epistemic Uncertainty Quantification.
+// Owner: Duwaragie K. (IT23270442). Consumer: M3.
+package metacore.module2.v1;
+
+option go_package = "github.com/metacore/contracts/go/module2/v1;module2v1";
+
+import "common.proto";
+
+// Dirichlet evidence over K grid-safety state classes, with the epistemic/aleatoric split.
+message UncertaintyEstimate {
+  metacore.common.v1.Envelope envelope = 1;
+
+  uint32 k_classes = 2;
+  repeated float evidence = 3;   // per-class Dirichlet evidence
+  float total_evidence = 4;      // S
+  float epistemic = 5;           // u = K / S, in [0, 1]
+  float aleatoric = 6;
+  repeated float class_probability = 7;
+
+  // Set when the input state carried missing modalities. Fail-safe: a malformed or absent input
+  // must produce high epistemic uncertainty, never a confident signal.
+  bool fail_safe_triggered = 8;
+}
+
+// Discrete trigger with hysteresis so the gate does not chatter around the threshold.
+message CompetenceDropTrigger {
+  metacore.common.v1.Envelope envelope = 1;
+  bool active = 2;
+  float epistemic = 3;
+  float threshold = 4;
+  float hysteresis_band = 5;
+  uint64 consecutive_steps = 6;
+}
+
+service UncertaintyService {
+  rpc StreamUncertainty(UncertaintyRequest) returns (stream UncertaintyEstimate);
+  rpc StreamTrigger(UncertaintyRequest) returns (stream CompetenceDropTrigger);
+  rpc Health(HealthRequest) returns (metacore.common.v1.Health);
+}
+
+message UncertaintyRequest { metacore.common.v1.ScenarioRef scenario = 1; }
+message HealthRequest {}

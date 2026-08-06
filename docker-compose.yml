@@ -1,0 +1,55 @@
+# Profiles let a developer run a subset instead of the whole agent.
+#   docker compose --profile m2 up      -> module2 + gateway + dashboard
+#   docker compose --profile core up    -> deterministic-core only
+name: metacore
+
+services:
+  dashboard:
+    build: ./apps/dashboard
+    profiles: [default, m1, m2, m3, web]
+    ports: ["5173:5173"]
+    depends_on: [gateway]
+
+  gateway:
+    build: ./services/gateway
+    profiles: [default, m1, m2, m3, web]
+    ports: ["8000:8000"]
+    env_file: [infra/env/gateway.env.example]
+
+  orchestrator:
+    build: ./services/orchestrator
+    profiles: [default]
+    depends_on: [module1, module2, gating-decision, module4-verification]
+
+  module1:
+    build: ./services/learned/module1_state_forecasting
+    profiles: [default, m1]
+
+  module2:
+    build: ./services/learned/module2_auq_engine
+    profiles: [default, m2]
+
+  module3-train:
+    build: ./services/learned/module3_metapolicy
+    profiles: [train]
+
+  gating-decision:
+    build: ./services/realtime/gating_decision_svc
+    profiles: [default, m3]
+
+  ingestion:
+    build: ./services/realtime/ingestion_svc
+    profiles: [default, ingest]
+
+  module4-verification:
+    build: ./deterministic-core/module4_verification
+    profiles: [default, core, m3]
+
+  module4-translation:
+    build: ./deterministic-core/module4_semantic_translation
+    profiles: [default, core]
+
+  bus:
+    image: nats:2.10-alpine
+    profiles: [default, ingest]
+    ports: ["4222:4222"]

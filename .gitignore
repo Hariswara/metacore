@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.eggs/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+uv.lock.local
+
+# Go
+bin/
+*.test
+*.out
+
+# Node
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# Data blobs (tracked by DVC, not git)
+data/raw/**
+data/processed/**
+data/external/**
+!data/**/.gitkeep
+!data/**/README.md
+*.dvc.lock
+
+# Models & artefacts
+*.pt
+*.pth
+*.onnx
+*.ckpt
+artifacts/
+mlruns/
+wandb/
+
+# OpenDSS run output
+*.DSS_out
+*.csv.gz
+deterministic-core/**/output/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+infra/env/*.env
+!infra/env/*.example
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Notebooks
+.ipynb_checkpoints/

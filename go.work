@@ -1,0 +1,7 @@
+go 1.22
+
+use (
+	./services/realtime/gating_decision_svc
+	./services/realtime/ingestion_svc
+	./packages/go_common
+)

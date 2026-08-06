@@ -1,0 +1,32 @@
+# uv workspace root for every Python service in the monorepo.
+# Each member owns their own service pyproject; this file only wires the workspace.
+[project]
+name = "metacore-workspace"
+version = "0.0.0"
+description = "MetaCore monorepo — uv workspace root (J26-DS-317)"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.uv.workspace]
+members = [
+  "services/gateway",
+  "services/orchestrator",
+  "services/learned/module1_state_forecasting",
+  "services/learned/module2_auq_engine",
+  "services/learned/module3_metapolicy",
+  "deterministic-core/module4_verification",
+  "deterministic-core/module4_semantic_translation",
+  "packages/py_common",
+  "packages/contracts/python",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["services", "deterministic-core", "packages"]
