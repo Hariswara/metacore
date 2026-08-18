@@ -26,15 +26,18 @@ tasks:
       - "{{.BIN}}/buf lint"
       - "{{.BIN}}/buf generate"
 
+  # Every `uv run` reshapes .venv to match its flags. The data and lint lanes therefore run
+  # --isolated: they need one tool, not the workspace, and syncing the venv down to their needs
+  # would strip the service dependencies the test lane depends on.
   data:
     desc: Rebuild the Module 1 calibration artifacts and run the reconciliation gates
     cmds:
-      - uv run --only-dev dvc repro data/dvc.yaml
+      - uv run --isolated --with dvc dvc repro data/dvc.yaml
 
   data:pull:
     desc: Re-download NASA POWER meteorology (network; frozen out of the default repro)
     cmds:
-      - uv run --only-dev dvc repro --force data/dvc.yaml:nasa_power_pull
+      - uv run --isolated --with dvc dvc repro --force data/dvc.yaml:nasa_power_pull
 
   dev:
     desc: Bring up the default compose profile
@@ -52,7 +55,7 @@ tasks:
   test:py:
     desc: Python tests for the learned services and gateway
     cmds:
-      - uv run --group dev pytest services packages
+      - uv run --all-packages --group dev pytest services packages
 
   test:core:
     desc: Deterministic core tests, isolated from the learned services
@@ -81,7 +84,7 @@ tasks:
   lint:
     desc: Lint every language lane
     cmds:
-      - uv run --group dev ruff check .
+      - uv run --isolated --with ruff ruff check .
       - |
         set -eu
         for module in $(go list -m); do go vet "$module/..."; done
