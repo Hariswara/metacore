@@ -1,3 +1,71 @@
-# DVC stages. Add one stage per reproducible transformation; keep raw pulls separate from
-# feature engineering so a schema change does not force a re-download.
-stages: {}
+# DVC stages for the Module 1 calibration path (ADR 0004 — the offline half of ingestion).
+# Raw pulls stay separate from feature engineering so a schema change does not force a re-download.
+#
+# `wdir: ..` puts every path in this file at repo root, matching how the commands are run by hand.
+# PYTHONPATH is set per-stage rather than assuming `uv sync --all-packages`: these stages are
+# stdlib-only on purpose and must not need Module 1's ML dependencies resolved to run.
+
+stages:
+
+  ceb_tidy:
+    wdir: ..
+    desc: >
+      CEB Jaffna generation ledger (2024-2025 monthly, 5 island systems) into a long-format
+      calibration table with derived specific fuel consumption and unit costs.
+    cmd: >
+      PYTHONPATH=services/learned/module1_state_forecasting/src
+      python -m module1.data.ceb
+      data/external/ceb_jaffna/Generation_2024_2025.xlsx
+      data/processed/ceb_generation_tidy.csv
+    deps:
+      - data/external/ceb_jaffna/Generation_2024_2025.xlsx
+      - services/learned/module1_state_forecasting/src/module1/data/ceb.py
+      - services/learned/module1_state_forecasting/src/module1/data/xlsx.py
+    outs:
+      - data/processed/ceb_generation_tidy.csv
+
+  ceb_reconcile:
+    wdir: ..
+    desc: >
+      Gate: reconcile every annual total against the printed summary CEB produced independently
+      of the spreadsheet, and re-check the per-row fuel and transport identities. Fails the
+      pipeline rather than warning — a column shift here silently moves every downstream
+      parameter, and there is no held-out telemetry that would catch it later.
+    cmd: >
+      PYTHONPATH=services/learned/module1_state_forecasting/src
+      python -m module1.data.validate
+      data/processed/ceb_generation_tidy.csv
+    deps:
+      - data/processed/ceb_generation_tidy.csv
+      - services/learned/module1_state_forecasting/src/module1/data/validate.py
+    always_changed: false
+
+  nasa_power_pull:
+    wdir: ..
+    frozen: true
+    desc: >
+      Two years of hourly irradiance, wind, temperature, humidity and precipitation for the four
+      islands, from NASA POWER. Open data, so unlike data/external this is allowed to be a build
+      dependency — it is the replacement for the Rs 75,000 Department of Meteorology quotation.
+      Frozen: it is a network pull of ~70,000 site-hours, and re-running it on every `dvc repro`
+      would be rude to a free public API. Refresh deliberately with
+      `dvc repro --force data/dvc.yaml:nasa_power_pull`.
+    cmd: >
+      PYTHONPATH=services/learned/module1_state_forecasting/src
+      python -m module1.data.nasa_power fetch data/raw/nasa_power
+      --start 20240101 --end 20251231
+    outs:
+      - data/raw/nasa_power
+
+  nasa_power_check:
+    wdir: ..
+    desc: >
+      Gate: hour count, no fill values surviving as numbers, no negative irradiance or wind, and
+      the physical sanity checks (dark at local midnight, lit at local midday). Also the stage
+      that keeps the measured spatial-resolution finding visible.
+    cmd: >
+      PYTHONPATH=services/learned/module1_state_forecasting/src
+      python -m module1.data.nasa_power validate data/raw/nasa_power
+    deps:
+      - data/raw/nasa_power
+      - services/learned/module1_state_forecasting/src/module1/data/nasa_power.py
