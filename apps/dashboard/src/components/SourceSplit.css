@@ -1,0 +1,101 @@
+.split {
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 20px 22px 14px;
+  box-shadow: var(--shadow);
+}
+
+.split__head { display: flex; flex-direction: column; gap: 6px; }
+
+.split__title { font-size: var(--step-1); font-weight: 600; }
+
+.split__sub {
+  margin: 0;
+  max-width: 68ch;
+  color: var(--ink-secondary);
+  font-size: var(--step--1);
+}
+
+.split__legend { display: flex; gap: 18px; margin-top: 6px; }
+
+.key {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--step--1);
+  color: var(--ink-secondary);
+}
+
+.key__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+  flex: none;
+}
+
+.split__plot { position: relative; margin-top: 14px; overflow-x: auto; }
+
+.split__svg { width: 100%; min-width: 620px; height: auto; display: block; }
+
+.split__tick {
+  font-size: 11px;
+  fill: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.split__col { cursor: pointer; }
+.split__col:focus { outline: none; }
+.split__col rect:not(.split__hit) { transition: opacity 120ms ease; }
+.split__col.is-active rect:not(.split__hit) { opacity: 1; }
+.split__plot:has(.is-active) .split__col:not(.is-active) rect:not(.split__hit) { opacity: 0.42; }
+.split__col:focus-visible rect:not(.split__hit) { stroke: var(--ink); stroke-width: 1.5; }
+
+.split__tip {
+  position: absolute;
+  top: 4px;
+  transform: translateX(-50%);
+  background: var(--surface);
+  border: 1px solid var(--rule-strong);
+  border-radius: 6px;
+  padding: 9px 12px 10px;
+  min-width: 190px;
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(11, 11, 11, 0.14);
+  z-index: 2;
+}
+
+.split__tip-title {
+  font-size: var(--step--1);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.split__tip-rows { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.split__tip-rows > div { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
+
+.split__tip-rows dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--step--1);
+  color: var(--ink-secondary);
+}
+
+.split__tip-rows dd {
+  margin: 0;
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.split__tip-share { color: var(--ink-muted); margin-left: 7px; }
+
+.split__tip-total {
+  border-top: 1px solid var(--rule);
+  padding-top: 5px;
+  margin-top: 2px;
+}
+.split__tip-total dt { color: var(--ink-muted); }
