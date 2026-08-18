@@ -2,20 +2,39 @@
 # Each task fans out to language-native tooling; nothing here reimplements a build system.
 version: "3"
 
+# Dev tooling is declared rather than assumed present. `task` and `buf` come from package.json and
+# land in node_modules/.bin; `dvc`, `pytest` and `ruff` come from the pyproject `dev` group and are
+# reached through `uv run`. A fresh clone therefore needs only pnpm, uv and Go.
+#
+# Binaries are referenced through {{.BIN}} rather than by bare name: Task does not let a Taskfile
+# `env:` block override PATH, so a bare `buf` would silently resolve to a global install or fail.
+vars:
+  BIN: "{{.ROOT_DIR}}/node_modules/.bin"
+
 tasks:
   setup:
     desc: Install workspace dependencies for every language lane
     cmds:
+      - pnpm install
       - uv sync --all-packages
       - go work sync
-      - pnpm install
 
   proto:
     desc: Regenerate Python / Go / TS stubs from packages/contracts/proto
     dir: packages/contracts
     cmds:
-      - buf lint
-      - buf generate
+      - "{{.BIN}}/buf lint"
+      - "{{.BIN}}/buf generate"
+
+  data:
+    desc: Rebuild the Module 1 calibration artifacts and run the reconciliation gates
+    cmds:
+      - uv run --only-dev dvc repro data/dvc.yaml
+
+  data:pull:
+    desc: Re-download NASA POWER meteorology (network; frozen out of the default repro)
+    cmds:
+      - uv run --only-dev dvc repro --force data/dvc.yaml:nasa_power_pull
 
   dev:
     desc: Bring up the default compose profile
@@ -33,7 +52,7 @@ tasks:
   test:py:
     desc: Python tests for the learned services and gateway
     cmds:
-      - uv run pytest services packages
+      - uv run --group dev pytest services packages
 
   test:core:
     desc: Deterministic core tests, isolated from the learned services
@@ -42,8 +61,17 @@ tasks:
       - uv run --isolated pytest .
 
   test:go:
+    desc: Go tests, per workspace module
+    # go.work declares no root module, so `go test ./...` from here has nothing to resolve
+    # against. Enumerate the modules instead of hardcoding them, so adding one to go.work is
+    # enough to get it tested.
     cmds:
-      - go test ./...
+      - |
+        set -eu
+        for module in $(go list -m); do
+          echo "--> $module"
+          go test "$module/..."
+        done
 
   test:web:
     dir: apps/dashboard
@@ -53,8 +81,10 @@ tasks:
   lint:
     desc: Lint every language lane
     cmds:
-      - uv run ruff check .
-      - go vet ./...
+      - uv run --group dev ruff check .
+      - |
+        set -eu
+        for module in $(go list -m); do go vet "$module/..."; done
       - pnpm -r lint
       - bash infra/ci/check_core_purity.sh
 
