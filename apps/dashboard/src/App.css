@@ -1,0 +1,55 @@
+.app { min-height: 100%; display: flex; flex-direction: column; }
+
+.app__wrap { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+.app__header {
+  border-bottom: 1px solid var(--rule);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.app__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  height: 54px;
+  flex-wrap: wrap;
+}
+
+.app__id { display: flex; align-items: baseline; gap: 10px; }
+
+.app__mark { font-weight: 600; letter-spacing: -0.01em; }
+
+.app__project {
+  font-size: var(--step--1);
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.app__nav { display: flex; gap: 2px; }
+
+.app__tab {
+  font-size: var(--step--1);
+  padding: 5px 11px;
+  border-radius: 4px;
+  color: var(--ink-secondary);
+}
+
+.app__tab.is-on { background: var(--surface-sunk); color: var(--ink); font-weight: 500; }
+.app__tab.is-off { color: var(--ink-muted); opacity: 0.65; cursor: not-allowed; }
+
+.app__main { padding-top: 32px; padding-bottom: 64px; display: flex; flex-direction: column; gap: 24px; }
+
+.app__intro { display: flex; flex-direction: column; gap: 8px; }
+
+.app__title { font-size: var(--step-2); font-weight: 600; letter-spacing: -0.02em; }
+
+.app__lede { margin: 0; max-width: 72ch; color: var(--ink-secondary); }
+
+@media (max-width: 720px) {
+  .app__bar { height: auto; padding-top: 12px; padding-bottom: 12px; }
+  .app__nav { overflow-x: auto; }
+}
