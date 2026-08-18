@@ -1,0 +1,16 @@
+{
+  "name": "metacore-workspace",
+  "private": true,
+  "description": "MetaCore monorepo — pnpm workspace root (J26-DS-317)",
+  "packageManager": "pnpm@11.5.1",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "bootstrap": "task setup"
+  },
+  "devDependencies": {
+    "@bufbuild/buf": "^1.72.0",
+    "@go-task/cli": "^3.53.1"
+  }
+}
