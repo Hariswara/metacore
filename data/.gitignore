@@ -1,6 +1,17 @@
+# Ignore dataset blobs; keep the directory skeleton and the docs that describe it.
+# Note: a bare `raw/**` also excludes the directories themselves, which stops git
+# descending far enough to honour any negation below it — hence the explicit `!*/`
+# re-includes for directories.
 raw/**
 processed/**
 external/**
+
+!raw/*/
+!raw/*/*/
+!processed/*/
+!external/*/
+!external/*/*/
+
 !**/.gitkeep
-!README.md
+!**/README.md
 !dvc.yaml
