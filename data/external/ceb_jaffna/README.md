@@ -75,3 +75,14 @@ all 5 systems, both years). The column mapping above is confirmed by that reconc
   tidy extract ignores them.
 - Solar and wind are **not metered separately** — the hybrid ledger records only diesel
   input and total kWh out. Renewable share must be inferred (see the baseline note).
+
+## Downstream: hourly load
+
+The monthly `units_kwh` column is the measured input to the load downscaling stage, which produces
+`data/processed/island_load_hourly.csv` — hourly load per **island** (Eluvaitivu's two plants are
+summed, because they serve one load). That series is **constructed, not measured**: monthly energy,
+installed capacity and Nainativu's 460 kVA reported maximum demand are enforced; the intra-day
+shape is assumed and every row is marked `QUALITY_INTERPOLATED`.
+
+Method, calibration and the circularity warning:
+[`docs/data/load-downscaling.md`](../../../docs/data/load-downscaling.md).

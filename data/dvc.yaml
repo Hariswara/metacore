@@ -69,3 +69,43 @@ stages:
     deps:
       - data/raw/nasa_power
       - services/learned/module1_state_forecasting/src/module1/data/nasa_power.py
+
+  load_downscale:
+    wdir: ..
+    desc: >
+      Monthly island energy -> hourly load, 2024-2025, four islands. Closes the resolution gap
+      between a monthly ledger and a dispatch decision. The shape is constructed, not recovered;
+      what is measured (monthly energy, installed capacity, Nainativu's 460 kVA reported maximum
+      demand) is enforced, and what is assumed (the diurnal curve, the temperature coefficient) is
+      written to load_parameters.json alongside the output. Every row is QUALITY_INTERPOLATED.
+    cmd: >
+      PYTHONPATH=services/learned/module1_state_forecasting/src
+      python -m module1.data.load downscale
+      data/processed/ceb_generation_tidy.csv
+      data/raw/nasa_power
+      data/processed/island_load_hourly.csv
+    deps:
+      - data/processed/ceb_generation_tidy.csv
+      - data/raw/nasa_power
+      - services/learned/module1_state_forecasting/src/module1/data/load.py
+    outs:
+      - data/processed/island_load_hourly.csv
+      - data/processed/load_parameters.json
+
+  load_check:
+    wdir: ..
+    desc: >
+      Gate: every month reconciles back to the CEB ledger exactly, hourly coverage is complete,
+      no peak exceeds installed genset capacity, the reported maximum demand is reproduced within
+      the power-factor band, load factors are physically plausible, and no row claims to be
+      observed. Energy conservation is the load-bearing check -- a wrong shape must not be able
+      to become a wrong energy balance.
+    cmd: >
+      PYTHONPATH=services/learned/module1_state_forecasting/src
+      python -m module1.data.load validate
+      data/processed/island_load_hourly.csv
+      data/processed/ceb_generation_tidy.csv
+    deps:
+      - data/processed/island_load_hourly.csv
+      - data/processed/ceb_generation_tidy.csv
+      - services/learned/module1_state_forecasting/src/module1/data/load.py

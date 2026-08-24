@@ -10,6 +10,7 @@ external approval blocks development. Blobs are tracked by DVC and ignored by gi
 | `raw/ais` | AIS (anonymised, grid-aggregated) | Vessel transit / port accessibility — fuel-resupply constraint |
 | `raw/uci_household_power` | UCI Household Electric Power Consumption | Baseline demand series |
 | `processed/` | Derived | Time-aligned, resampled feature tables and graph tensors |
+| `processed/island_load_hourly.csv` | Derived | **Constructed, not measured.** Hourly load per island 2024–2025, downscaled from the monthly CEB ledger. Every row `QUALITY_INTERPOLATED`; assumptions in `load_parameters.json`. See [`docs/data/load-downscaling.md`](../docs/data/load-downscaling.md) |
 | `external/ceb_jaffna` | CEB / EDL Northern Province | Monthly generation, fuel and cost ledger 2024–2025 for the four islanded microgrids, plus the Eluvaitivu hybrid single-line and battery-replacement tender. **Calibration only** — see below and [`external/ceb_jaffna/README.md`](external/ceb_jaffna/README.md) |
 | `external/` | Department of Meteorology | **Calibration only** — see below |
 
