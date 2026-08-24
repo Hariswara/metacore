@@ -57,3 +57,45 @@ stages:
       hash: md5
       md5: 02ff74c170f4f764bc07664e8ba63a7b
       size: 14917
+  load_downscale:
+    cmd: "PYTHONPATH=services/learned/module1_state_forecasting/src python -m module1.data.load
+      downscale data/processed/ceb_generation_tidy.csv data/raw/nasa_power data/processed/island_load_hourly.csv\n"
+    deps:
+    - path: data/processed/ceb_generation_tidy.csv
+      hash: md5
+      md5: 7bd415931d5f86cb3bb4111095888717
+      size: 13292
+    - path: data/raw/nasa_power
+      hash: md5
+      md5: 4f805a4860450bbeee02d1bb2fca3b2b.dir
+      size: 5212619
+      nfiles: 6
+    - path: services/learned/module1_state_forecasting/src/module1/data/load.py
+      hash: md5
+      md5: 0c504018e21cf612a5433027544e4047
+      size: 22852
+    outs:
+    - path: data/processed/island_load_hourly.csv
+      hash: md5
+      md5: 9f788004cbe5e279af21def172a03aa2
+      size: 4157844
+    - path: data/processed/load_parameters.json
+      hash: md5
+      md5: 52eab035bcf604faa927a26a70b4e169
+      size: 3310
+  load_check:
+    cmd: "PYTHONPATH=services/learned/module1_state_forecasting/src python -m module1.data.load
+      validate data/processed/island_load_hourly.csv data/processed/ceb_generation_tidy.csv\n"
+    deps:
+    - path: data/processed/ceb_generation_tidy.csv
+      hash: md5
+      md5: 7bd415931d5f86cb3bb4111095888717
+      size: 13292
+    - path: data/processed/island_load_hourly.csv
+      hash: md5
+      md5: 9f788004cbe5e279af21def172a03aa2
+      size: 4157844
+    - path: services/learned/module1_state_forecasting/src/module1/data/load.py
+      hash: md5
+      md5: 0c504018e21cf612a5433027544e4047
+      size: 22852

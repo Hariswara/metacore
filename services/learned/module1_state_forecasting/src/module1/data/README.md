@@ -61,6 +61,7 @@ that M3 gates on.
 | `ceb.py` | `ceb_tidy` | CEB Jaffna generation ledger → long-format calibration table |
 | `validate.py` | `ceb_reconcile` | Reconciliation gate against the printed annual summary |
 | `nasa_power.py` | `nasa_power_pull` / `nasa_power_check` | Hourly meteorology for the four islands, and its gate |
+| `load.py` | `load_downscale` / `load_check` | Monthly island energy → hourly load, and its gate |
 
 `nasa_power_pull` is **frozen** in `data/dvc.yaml`: it is a network fetch of ~70,000 site-hours
 from a free public API, so it is deliberately excluded from the default `dvc repro`. Refresh it
@@ -69,3 +70,8 @@ with `task data:pull`.
 The NASA POWER stage carries a measured constraint worth reading before modelling anything
 spatial: the source does not resolve these islands. See
 [`docs/data/nasa-power-resolution.md`](../../../../../../docs/data/nasa-power-resolution.md).
+
+`load.py` is the stage where the measured/constructed boundary matters most: it turns 120 monthly
+numbers into 70,176 hourly ones. Read the circularity warning in its docstring before using the
+output as training data for anything — it is a simulation input, not observed history.
+[`docs/data/load-downscaling.md`](../../../../../../docs/data/load-downscaling.md).
