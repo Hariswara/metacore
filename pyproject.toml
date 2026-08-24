@@ -33,6 +33,19 @@ members = [
   "packages/contracts/python",
 ]
 
+# Torch from the CPU wheel index, not PyPI. The default PyPI wheel bundles the NVIDIA CUDA
+# runtime -- libcublasLt, libcufft, libtriton and friends -- which is roughly 2.5 GB installed and
+# useless without an NVIDIA GPU. The CPU build is about 200 MB. Anyone training on GPU hardware
+# should override this locally rather than have every laptop pay for it.
+# `explicit = true` means only packages routed here by tool.uv.sources use this index.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
