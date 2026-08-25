@@ -31,6 +31,27 @@ def uncertainty(evidence):
     return u, p, ent
 
 
+def uncertainty_quality(evidence, observed_fraction):
+    """Quality-aware epistemic uncertainty. Discounts total evidence by how much of the
+    state was actually OBSERVED, so interpolated/missing data raises u independently of
+    distribution shift:  u' = K / (sum(evidence) * observed_fraction + K).
+
+    observed_fraction=1 -> plain u ; ->0 -> u->1. Accepts a float or a batch tensor.
+
+    The two axes are independent. A cyclone state has near-zero evidence, so u is ~1 at
+    any quality; an ordinary state with a comms blackout has plenty of evidence but little
+    of it observed, so u climbs anyway. Both are "the state I was handed is untrustworthy",
+    which is what M3 gates on -- but only the first is distribution shift.
+
+    observed_fraction is assumed to be in [0, 1]; QualityMask derives it as a ratio and
+    StateRepresentation validates the mask, so the invariant is enforced upstream.
+    """
+    K = evidence.shape[1]
+    of = (observed_fraction if torch.is_tensor(observed_fraction)
+          else torch.as_tensor(observed_fraction, dtype=evidence.dtype))
+    return K / (evidence.sum(1) * of + K)
+
+
 def kl_to_uniform(alpha):
     """KL( Dir(alpha) || Dir(1) ) -- pushing this to 0 drives evidence -> 0."""
     K = alpha.shape[1]
