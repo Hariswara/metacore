@@ -9,6 +9,7 @@ Competence is lost in two independent ways, and the gate fires on either:
 The trigger tests them separately and reports which one fired.
 """
 
+import json
 import random
 
 import numpy as np
@@ -16,7 +17,15 @@ import torch
 import yaml
 from contract import build_output
 from edl import EDLNet, edl_mse_loss, kl_to_uniform, uncertainty, uncertainty_quality
-from evaluate import aupr, auroc, ece, fpr95
+from evaluate import (
+    aupr,
+    auroc,
+    ece,
+    fpr95,
+    reliability_table,
+    retained_composition,
+    risk_coverage,
+)
 from state_contract import stack_features
 from synthetic_data import (
     D,
@@ -132,6 +141,53 @@ for name, vu, of in (("normal ID (of=0.50)", vu_id, of_te),
     counts = {r: reasons.count(r)/len(reasons) for r in sorted(set(reasons))}
     breakdown = "  ".join(f"{r} {c:.2f}" for r, c in counts.items())
     print(f"{name:<26}  {fired.mean():>6.3f}   {breakdown}")
+
+# --- selective prediction: does u predict error? ---
+correct = (p_id.argmax(1) == yte)
+covs, risks, aurc = risk_coverage(vu_id, correct)
+print("\nSelective prediction on in-distribution states (reject highest u first):")
+print(f"  full-coverage accuracy    : {correct.mean():.3f}")
+for target in (0.25, 0.50, 0.75):
+    i = int(np.argmin(np.abs(covs - target)))
+    print(f"  accuracy @ coverage {covs[i]:.2f}  : {1 - risks[i]:.3f}")
+print(f"  AURC                      : {aurc:.4f}   (lower better; "
+      f"{risk_coverage(np.random.default_rng(0).permutation(vu_id), correct)[2]:.4f} "
+      "for a shuffled ranking)")
+
+# --- what a single u ranking does, and does not, reject ---
+mixed_states = te_states + ood_states + bo_states
+groups = np.array(["normal"]*len(te_states) + ["cyclone"]*len(ood_states)
+                  + ["blackout"]*len(bo_states))
+u_mixed = np.concatenate([u_id, u_ood, u_bo])
+vu_mixed = np.concatenate([vu_id, vu_ood, vu_bo])
+of_mixed = np.concatenate([of_te, of_ood, of_bo])
+composition = retained_composition(u_mixed, groups)
+half = min(composition, key=lambda r: abs(r["coverage"] - 0.50))
+base = {g: float((groups == g).mean()) for g in ("normal", "cyclone", "blackout")}
+print("\nMixed stream, ranked by the combined u (keep the most confident half):")
+print(f"  full stream    : normal {base['normal']:.3f}  cyclone {base['cyclone']:.3f}  "
+      f"blackout {base['blackout']:.3f}")
+print(f"  kept half      : normal {half['normal']:.3f}  cyclone {half['cyclone']:.3f}  "
+      f"blackout {half['blackout']:.3f}")
+print("  -> the magnitude alone clears the value axis, and barely touches the sensing")
+print("     axis. That is what the observed_fraction floor is for:")
+fired_mixed = np.array(
+    [CompetenceDropTrigger(trig.vthr, trig.of_floor, 1).update(float(v), float(o))[0]
+     for v, o in zip(vu_mixed, of_mixed, strict=True)])
+for g in ("normal", "cyclone", "blackout"):
+    print(f"     trigger fires on {g:<9}: {fired_mixed[groups == g].mean():.3f}")
+
+# --- emit the evaluation tables as data; plots.py renders them (viz extra) ---
+reliability = reliability_table(p_id, yte)
+with open("eval_tables.json", "w") as f:
+    json.dump({
+        "reliability": reliability,
+        "ece": float(ece(p_id, yte)),
+        "risk_coverage": {"coverage": covs.tolist(), "risk": risks.tolist(), "aurc": aurc},
+        "retained_composition": composition,
+    }, f, indent=2)
+print(f"\n(eval_tables.json written: {len(reliability)} reliability bins, "
+      f"{len(covs)} coverage points -- render with `python plots.py`)")
 
 # --- emit a few M2->M3 messages (the mock stream Saabir consumes now) ---
 print("\nSample M2 -> M3 contract messages (normal + cyclone + blackout):")

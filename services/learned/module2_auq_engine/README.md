@@ -33,6 +33,23 @@ there. Measured: a single threshold caught **39%** of blackout states; the two-c
 trigger catches **100%**, at the same 5% false-alarm rate on normal operation.
 
 ## Verified results (`python run_demo.py`)
+
+**Headline — `u` predicts error.** This is the claim the module rests on, and it is not
+the same claim as calibration: ECE asks whether the probabilities are honest, selective
+prediction asks whether the uncertainty is *usable* as a decision to abstain.
+
+| Selective prediction (in-distribution) | Value |
+|---|---|
+| accuracy at full coverage | 0.947 |
+| accuracy at 50% coverage (reject highest `u`) | **1.000** |
+| accuracy at 75% coverage | 0.999 |
+| **AURC** | **0.0048** |
+| AURC with the ranking shuffled | 0.0563 |
+
+Rejecting the least-certain half of the states removes every error. The shuffled row is
+the control: a random ranking scores 12× worse, so the result comes from `u` and not from
+the data being easy.
+
 | Metric | Value | Target |
 |---|---|---|
 | ID 3-class accuracy | 0.947 | — |
@@ -59,6 +76,34 @@ Magnitude along the quality axis — the same in-distribution states, less of th
 | mean u (in-distribution) | 0.105 | 0.130 | 0.173 | 0.271 | 0.440 |
 | mean u (cyclone) | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
 
+### Why the trigger is not just a threshold on `u`
+
+Ranking a mixed stream by the combined `u` and keeping the most-confident half:
+
+| | normal | cyclone | blackout |
+|---|---|---|---|
+| full stream | 0.385 | 0.308 | 0.308 |
+| kept half | 0.670 | **0.000** | **0.330** |
+
+The magnitude clears the value axis completely and does **not** clear the sensing axis —
+a blackout at `observed_fraction` 0.375 discounts a confident state into the same `u`
+range as an ordinary one, so blackouts survive the cut (their share even rises, because
+the cyclones ahead of them are removed). The explicit `observed_fraction` floor is what
+catches them: the two-condition trigger fires on 1.000 of cyclones **and** 1.000 of
+blackouts, at 0.050 on normal operation.
+
+## Figures (optional `viz` extra)
+
+Metrics are computed in NumPy and emitted as **data** — `run_demo.py` writes
+`eval_tables.json` (reliability bins, risk-coverage points, retained composition). Nothing
+in the test lane imports a plotting stack.
+
+```bash
+uv sync --package metacore-module2 --extra viz   # or: pip install 'matplotlib>=3.7'
+python run_demo.py                               # writes eval_tables.json
+python plots.py                                  # writes reliability.png, risk_coverage.png
+```
+
 ## Run
 ```bash
 pip install -r requirements.txt
@@ -70,12 +115,13 @@ python run_demo.py
 - `synthetic_data.py` — **mock M1 state generator** (ID normal + OOD cyclone), emitting `StateRepresentation`. Replace with the real M1→M2 adapter when it lands.
 - `edl.py` — EDL head, `u = K/S`, quality-aware `u`, Dirichlet KL, EDL loss, OOD-aware evidence regulariser.
 - `trigger.py` — two-condition competence-drop trigger (value threshold OR sensing floor, hysteresis, reason).
-- `evaluate.py` — AUROC / AUPR / FPR95 / ECE (NumPy).
+- `evaluate.py` — AUROC / AUPR / FPR95 / ECE plus risk-coverage / AURC, reliability and retained-composition **tables** (NumPy, no plotting).
+- `plots.py` — renders those tables (reliability diagram, risk-coverage curve). Needs the `viz` extra; imported by nothing else.
 - `contract.py` + `M2_TO_M3_CONTRACT.md` — **M2→M3 message + mock stream for Saabir**.
-- `run_demo.py` — end-to-end prototype; writes `sample_m2_to_m3.jsonl`.
+- `run_demo.py` — end-to-end prototype; writes `sample_m2_to_m3.jsonl` and `eval_tables.json`.
 - `config.yaml` — K, features, training and trigger settings (retune without code changes).
 
-## Two things worth understanding
+## Four things worth understanding
 1. **Why OOD-aware regularisation is in the loss.** Plain EDL extrapolates *confidently* on far-OOD tabular inputs. The `ood_reg_weight` term drives evidence → 0 on far proxy points so cyclone states read u ≈ 1. This is standard practice and is your defensible design choice.
 2. **Uncertainty only flags novelty in features the model uses.** The risk label depends on wind/rain too, so the net learns to attend to them; otherwise it would ignore the cyclone dimensions.
 3. **The value threshold is calibrated on plain, quality-independent `u`, and the sensing floor sits just below M1's nominal `observed_fraction`.** M1's real state is roughly half interpolated by construction (ADR 0004), so a floor at 1.0 would be a permanent false alarm and a single combined threshold under-fires on real sensing loss. Keeping the axes apart is what makes both fire reliably — and the floor is not a taste knob: it belongs just under whatever M1's steady-state `observed_fraction` turns out to be.

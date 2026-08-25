@@ -30,6 +30,61 @@ def fpr95(pos, neg):
     return float((neg >= thr).mean())
 
 
+def risk_coverage(u, correct, steps=21):
+    """Selective prediction: sort by ascending u (keep most confident first); at each
+    coverage report the error rate (risk) of the kept set. Returns (coverages, risks, aurc).
+
+    Low AURC => u ranks errors to the top, i.e. u predicts error. This is the claim the
+    module actually rests on: not that the probabilities are calibrated, but that the
+    uncertainty is usable as a decision to abstain.
+    """
+    order = np.argsort(np.asarray(u))
+    c = np.asarray(correct, float)[order]
+    covs, risks = [], []
+    for k in range(1, steps + 1):
+        cov = k / steps
+        keep = max(1, int(round(cov * len(c))))
+        covs.append(cov)
+        risks.append(1.0 - c[:keep].mean())
+    covs, risks = np.array(covs), np.array(risks)
+    return covs, risks, float(np.trapezoid(risks, covs))
+
+
+def retained_composition(u, groups, steps=21):
+    """Share of each group surviving in the kept set, by coverage. The companion to
+    risk_coverage for a mixed stream: it says *what* gets rejected first without
+    depending on how "error" was defined for unlabelled states."""
+    order = np.argsort(np.asarray(u))
+    g = np.asarray(groups)[order]
+    names = sorted(set(g.tolist()))
+    rows = []
+    for k in range(1, steps + 1):
+        cov = k / steps
+        keep = max(1, int(round(cov * len(g))))
+        kept = g[:keep]
+        rows.append({"coverage": cov,
+                     **{n: float((kept == n).mean()) for n in names}})
+    return rows
+
+
+def reliability_table(probs, labels, n_bins=10):
+    """Per-bin calibration data (reliability diagram + ECE), emitted as data not a plot."""
+    probs = np.asarray(probs)
+    labels = np.asarray(labels)
+    conf = probs.max(1)
+    pred = probs.argmax(1)
+    acc = (pred == labels).astype(float)
+    edges = np.linspace(0, 1, n_bins + 1)
+    rows = []
+    for i in range(n_bins):
+        mrow = (conf > edges[i]) & (conf <= edges[i + 1])
+        if mrow.sum():
+            rows.append({"bin_lo": float(edges[i]), "bin_hi": float(edges[i + 1]),
+                         "confidence": float(conf[mrow].mean()),
+                         "accuracy": float(acc[mrow].mean()), "count": int(mrow.sum())})
+    return rows
+
+
 def ece(probs, labels, n_bins=10):
     conf = probs.max(1)
     pred = probs.argmax(1)
