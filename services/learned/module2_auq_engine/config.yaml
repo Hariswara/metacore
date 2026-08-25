@@ -12,5 +12,10 @@ train:
   ood_reg_weight: 0.1       # OOD-aware evidence regularisation
   ood_proxy_sigma: 4.0      # spread of the far-OOD proxy (standardised space)
 trigger:
-  false_alarm_rate: 0.05    # threshold = (1 - far) quantile of in-distribution u
+  # Two conditions, OR'd. The value threshold is the (1 - far) quantile of plain,
+  # quality-independent in-distribution u; the floor sits just under M1's nominal
+  # observed_fraction (0.5), so ordinary interpolated data does not fire but a lost
+  # modality does.
+  value_false_alarm_rate: 0.05
+  observed_fraction_floor: 0.4
   hysteresis: 2             # consecutive steps to confirm / clear a competence drop

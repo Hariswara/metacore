@@ -10,6 +10,7 @@ import time
 import numpy as np
 from state_contract import (
     QUALITY_INTERPOLATED,
+    QUALITY_MISSING,
     QUALITY_OBSERVED,
     Envelope,
     QualityMask,
@@ -76,9 +77,19 @@ PRODUCER = "module1"
 # mock embedding below is noise -- train on node_features, not node_embedding.
 EMBEDDING_DIM = 16
 
-SCENARIO_LIBRARY_VERSION = "mock/0.1"
+SCENARIO_LIBRARY_VERSION = "mock/0.2"
 SCENARIO_ID_ID = "mock-island-normal"
 SCENARIO_ID_OOD = "mock-island-cyclone"
+SCENARIO_ID_BLACKOUT = "mock-island-blackout"
+
+# Share of states that arrive with a modality missing. M1 has no live feed at all
+# (ADR 0004), so this stands in for the replay case where a channel is absent for
+# part of an episode.
+BLACKOUT_RATE = 0.15
+
+# A blackout drops one to three of the four measured channels, leaving
+# observed_fraction at 3/8, 2/8 or 1/8 -- under the 0.4 floor, above nothing.
+BLACKOUT_DROP_RANGE = (1, 3)
 
 # Per-feature Quality. ADR 0004 constraint 3: anything not measured must not be
 # QUALITY_OBSERVED. The weather channels come from NASA POWER reanalysis and are
@@ -98,7 +109,24 @@ FEATURE_QUALITY = {
 }
 
 
-def _make_state(x_row, rng, scenario_id, out_of_distribution):
+def _blackout_mask(rng):
+    """Per-feature Quality with one to three measured channels lost.
+
+    Note what is NOT done here: the feature *values* are left alone. A blackout must
+    move the sensing axis and nothing else, or blackout states drift value-OOD too and
+    the two axes stop being separable -- which is the whole point of testing them apart.
+    The mask carries the provenance; the array carries whatever M1 imputed.
+    """
+    observed = [f for f in FEATURES if FEATURE_QUALITY[f] == QUALITY_OBSERVED]
+    low, high = BLACKOUT_DROP_RANGE
+    n_dropped = int(rng.integers(low, high + 1))
+    dropped = set(rng.choice(observed, size=n_dropped, replace=False).tolist())
+    return QualityMask.from_per_feature(
+        [QUALITY_MISSING if f in dropped else FEATURE_QUALITY[f] for f in FEATURES]
+    )
+
+
+def _make_state(x_row, rng, scenario_id, out_of_distribution, blackout=False):
     """One island node, one timestep, as M1 will hand it to us."""
     node_features = np.asarray(x_row, np.float32).reshape(1, -1)
     node_embedding = rng.standard_normal((1, EMBEDDING_DIM)).astype(np.float32)
@@ -106,9 +134,14 @@ def _make_state(x_row, rng, scenario_id, out_of_distribution):
         schema_version=SCHEMA_VERSION,
         emitted_at=time.time(),
         producer=PRODUCER,
-        scenario=ScenarioRef(scenario_id, SCENARIO_LIBRARY_VERSION, out_of_distribution),
+        scenario=ScenarioRef(
+            SCENARIO_ID_BLACKOUT if blackout else scenario_id,
+            SCENARIO_LIBRARY_VERSION,
+            out_of_distribution,
+        ),
     )
-    quality = QualityMask.from_per_feature([FEATURE_QUALITY[f] for f in FEATURES])
+    quality = (_blackout_mask(rng) if blackout
+               else QualityMask.from_per_feature([FEATURE_QUALITY[f] for f in FEATURES]))
     return StateRepresentation(
         envelope=envelope,
         node_count=1,
@@ -118,21 +151,54 @@ def _make_state(x_row, rng, scenario_id, out_of_distribution):
         feature_names=list(FEATURES),
         node_features=node_features,
         quality=quality,
-        # Sensing availability, not distribution shift: a cyclone state is fully
-        # observed. OOD lives in scenario.out_of_distribution.
-        degraded=False,
+        # This is exactly what `degraded` is for: a modality is absent. It stays False
+        # for a cyclone, which is fully observed -- that is distribution shift, and it
+        # lives in scenario.out_of_distribution.
+        degraded=blackout,
     )
 
 
-def sample_states_id(n, rng):
-    """n in-distribution states + their 3-class safety labels."""
+def _blackout_flags(n, rng, blackout_rate):
+    if blackout_rate <= 0:
+        return np.zeros(n, dtype=bool)
+    return rng.random(n) < blackout_rate
+
+
+def sample_states_id(n, rng, blackout_rate=BLACKOUT_RATE):
+    """n in-distribution states + their 3-class safety labels.
+
+    Mixed quality by default: most arrive at M1's nominal observed_fraction of 0.5,
+    a minority with a modality missing. Pass blackout_rate=0.0 for a clean
+    nominal-quality population.
+    """
     x, y = sample_id(n, rng)
-    states = [_make_state(x[i], rng, SCENARIO_ID_ID, False) for i in range(n)]
+    flags = _blackout_flags(n, rng, blackout_rate)
+    states = [_make_state(x[i], rng, SCENARIO_ID_ID, False, blackout=bool(flags[i]))
+              for i in range(n)]
     return states, y
 
 
-def sample_states_ood(n, rng):
-    """n out-of-distribution (cyclone) states. Unlabelled, so the label slot is None."""
+def sample_states_ood(n, rng, blackout_rate=0.0):
+    """n out-of-distribution (cyclone) states. Unlabelled, so the label slot is None.
+
+    Nominal quality by default, so the value axis is measured without the sensing axis
+    on top of it. Raise blackout_rate to build the compound case (a cyclone that also
+    takes the comms out), which is the one that should report reason "both".
+    """
     x = sample_ood(n, rng)
-    states = [_make_state(x[i], rng, SCENARIO_ID_OOD, True) for i in range(n)]
+    flags = _blackout_flags(n, rng, blackout_rate)
+    states = [_make_state(x[i], rng, SCENARIO_ID_OOD, True, blackout=bool(flags[i]))
+              for i in range(n)]
     return states, None
+
+
+def sample_states_blackout(n, rng):
+    """n comms-blackout states: ordinary in-distribution VALUES, low observed_fraction.
+
+    The sensing axis on its own. These are not out of distribution -- nothing about the
+    grid is unusual, we just cannot see it -- so out_of_distribution stays False and a
+    value-only trigger is expected to miss them.
+    """
+    x, y = sample_id(n, rng)
+    states = [_make_state(x[i], rng, SCENARIO_ID_ID, False, blackout=True) for i in range(n)]
+    return states, y
