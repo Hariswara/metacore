@@ -132,6 +132,61 @@ viable and not.
 Every claim above is asserted as an *ordering* in `tests/test_baselines.py` at reduced
 scale (~5s) — exact values move with the seed, the ranking does not.
 
+## Serving: ONNX export and batch-1 latency (optional `onnx` extra)
+
+Feasibility evidence for M3's deliberation budget, and for `Health.last_step_latency_ms`
+in `packages/contracts/proto/common.proto`.
+
+```bash
+uv sync --package metacore-module2 --extra onnx
+python export_onnx.py     # writes edl.onnx (+ model card), verified against torch
+python bench_latency.py   # writes latency_table.json
+```
+
+| backend | mean ms | p50 ms | p99 ms | amortised ms/sample | optimism |
+|---|---|---|---|---|---|
+| torch-eager | 0.0462 | 0.0425 | 0.0857 | 0.0001 | **303×** |
+| ONNX Runtime | 0.0227 | **0.0196** | **0.0462** | n/a | — |
+
+**Batch-1 is the only honest number here.** The gate scores one state per control step, so
+its cost is the latency of a single call. Dividing a batch-1000 forward pass by 1000 hides
+per-call dispatch and kernel launch completely and reports a figure the real path never
+sees — here it is **303× more optimistic** than what the gate actually pays. The
+`ms/sample` column in `comparison_table.json` is exactly that optimistic, and should be
+read as throughput, not latency.
+
+ONNX Runtime is 2.2× faster than torch-eager at batch-1 (p50 0.0196 ms vs 0.0425 ms) and
+halves the tail (p99 0.0462 ms vs 0.0857 ms). The tail is the number that matters for a
+step deadline: a p99 that blows the budget is a missed step, not a slow one. Both backends
+are comfortably sub-millisecond, so uncertainty scoring is not what constrains the control
+loop — deliberation is, which is the premise M3's cost model rests on.
+
+The amortised column is `n/a` for ONNX because the artifact is **fixed at batch 1** and
+cannot be run batched at all — feeding it 1000 rows is an `InvalidArgument`. Batched
+offline evaluation needs a separate export with `dynamic_shapes`.
+
+### What is in the graph, and what is not
+
+`edl.onnx` contains the network and produces **evidence** only. `u = K/S`, the
+`observed_fraction` discount and the two-condition trigger stay in Python, in `infer.py`.
+That split is deliberate: `observed_fraction` is a per-state runtime input arriving with
+M1's `QualityMask`, and the thresholds are calibrated per deployment — freezing either
+into the artifact would mean re-exporting to retune a threshold.
+
+`edl.onnx.json` is the model card, and it carries the **normalisation statistics**. Without
+them the graph is unusable: it expects standardised input, and `mu`/`sd` are training-set
+properties that live nowhere else. The artifact is self-contained (`external_data=False`)
+— 15.5 KB, opset 18, no sidecar file to lose on the way to deployment.
+
+`edl.onnx` itself is **not committed**: the repo-wide `.gitignore` excludes `*.onnx` under
+"Models & artefacts". Regenerate it with `python export_onnx.py` — training is seeded and
+the export is verified against torch to 1e-5, so the artifact is reproducible rather than
+merely absent. The model card is committed, and records the verification result.
+
+`infer.OnnxAUQ` is the path M3 calls: `load()` → `calibrate(id_features)` → `score(features,
+observed_fraction)` → an `M2Output`. It runs the same two axes as the torch path and needs
+no torch at serving time.
+
 ## Figures (optional `viz` extra)
 
 Metrics are computed in NumPy and emitted as **data** — `run_demo.py` writes
@@ -159,6 +214,9 @@ python run_demo.py
 - `plots.py` — renders those tables (reliability diagram, risk-coverage curve). Needs the `viz` extra; imported by nothing else.
 - `baselines.py` — softmax max-prob, MC-Dropout, and the EDL / EDL-without-OOD-reg pair, on one architecture.
 - `benchmark.py` + `comparison_table.json` — full-scale comparison **script** (not run in CI) and the table it writes.
+- `export_onnx.py` + `edl.onnx` + `edl.onnx.json` — ONNX export **script**, the batch-1 artifact, and its model card (architecture, opset, normalisation statistics).
+- `infer.py` — the serving path M3 calls: ONNX evidence + uncertainty + trigger, no torch at inference.
+- `bench_latency.py` + `latency_table.json` — batch-1 p50/p99 **script** for torch-eager vs ONNX Runtime.
 - `contract.py` + `M2_TO_M3_CONTRACT.md` — **M2→M3 message + mock stream for Saabir**.
 - `run_demo.py` — end-to-end prototype; writes `sample_m2_to_m3.jsonl` and `eval_tables.json`.
 - `config.yaml` — K, features, training and trigger settings (retune without code changes).

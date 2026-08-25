@@ -19,6 +19,10 @@ dependencies = [
 #   uv sync --package metacore-module2 --extra viz
 [project.optional-dependencies]
 viz = ["matplotlib>=3.7"]
+# Export and serving only. The core install and the default test lane must not pull these;
+# tests/test_onnx.py skips cleanly when onnxruntime is absent:
+#   uv sync --package metacore-module2 --extra onnx
+onnx = ["onnx>=1.16", "onnxruntime>=1.18", "onnxscript>=0.1"]
 
 [build-system]
 requires = ["hatchling"]

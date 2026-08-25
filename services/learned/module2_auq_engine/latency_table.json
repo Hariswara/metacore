@@ -1,0 +1,30 @@
+{
+  "method": {
+    "batch_size": 1,
+    "warmup": 50,
+    "reps": 300,
+    "amortised_batch": 1000,
+    "note": "p50/p99 are batch-1 per-call latency, the gate's real cost. amortised_* is batch throughput and must not be reported as latency."
+  },
+  "torch_version": "2.11.0+cpu",
+  "onnxruntime_version": "1.24.4",
+  "rows": [
+    {
+      "backend": "torch-eager",
+      "mean_ms": 0.04624733356952978,
+      "p50_ms": 0.0425000034738332,
+      "p99_ms": 0.08570399775635451,
+      "amortised_batch1000_ms_per_sample": 0.00014040000678505749,
+      "amortised_optimism_ratio": 302.7065628201693
+    },
+    {
+      "backend": "onnxruntime",
+      "mean_ms": 0.022726665920345113,
+      "p50_ms": 0.01960000372491777,
+      "p99_ms": 0.046227002458181204,
+      "amortised_batch1000_ms_per_sample": null,
+      "amortised_optimism_ratio": null,
+      "note": "artifact is fixed batch-1; batched throughput would need a separate export with dynamic_shapes"
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "artifact": "edl.onnx",
+  "produces": "evidence",
+  "note": "Evidence only. u = K/(sum(evidence)+K), the observed_fraction discount and the competence-drop trigger are computed by infer.py, outside the graph, because observed_fraction is a per-state runtime input and the thresholds are calibrated per deployment.",
+  "architecture": {
+    "input_dim": 8,
+    "hidden": 32,
+    "classes": 3,
+    "feature_names": [
+      "voltage_pu",
+      "load_factor",
+      "freq_dev_hz",
+      "wind_ms",
+      "rainfall_mm",
+      "solar_wm2",
+      "gen_margin",
+      "temp_c"
+    ]
+  },
+  "io": {
+    "input": "state",
+    "output": "evidence",
+    "batch_size": 1,
+    "batch_note": "Fixed at 1 for the gate. Re-export with dynamic_shapes for batched offline evaluation."
+  },
+  "normalisation": {
+    "note": "Input must be standardised with these training-set statistics before inference.",
+    "mean": [
+      0.9993359446525574,
+      0.5994855761528015,
+      0.0012777566444128752,
+      5.994896411895752,
+      2.0076146125793457,
+      448.7629089355469,
+      0.3552291691303253,
+      28.006685256958008
+    ],
+    "std": [
+      0.019835596904158592,
+      0.1738109290599823,
+      0.05047168582677841,
+      3.4482851028442383,
+      1.9701106548309326,
+      257.1932678222656,
+      0.14220057427883148,
+      2.9819400310516357
+    ]
+  },
+  "training": {
+    "seed": 0,
+    "epochs": 300,
+    "ood_reg_weight": 0.1,
+    "n_train": 3000
+  },
+  "export": {
+    "opset": 18,
+    "exporter": "torch.onnx.export(dynamo=True)",
+    "torch_version": "2.11.0+cpu"
+  },
+  "verification": {
+    "atol": 1e-05,
+    "max_abs_diff_vs_torch": 3.814697265625e-06
+  }
+}
