@@ -1,7 +1,8 @@
 """M2 -> M3 output contract (see master plan register). Saabir's gate (M3 FR1)
 builds against mock_stream() until this module's real output is live."""
-from dataclasses import dataclass, asdict
-import json, time
+import json
+import time
+from dataclasses import asdict, dataclass
 
 SCHEMA_VERSION = "m2-out/0.1"
 

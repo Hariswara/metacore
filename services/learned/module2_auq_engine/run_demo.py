@@ -1,34 +1,52 @@
 """End-to-end Module 2 prototype (the Week-7 demo), on synthetic data only.
 Trains EDL -> shows u low on normal / high on cyclone -> reports OOD metrics ->
 calibrates the competence-drop trigger -> emits sample M2->M3 messages."""
-import numpy as np, torch, yaml, json
-from synthetic_data import sample_id, sample_ood, Normalizer, D
-from edl import EDLNet, uncertainty, edl_mse_loss, kl_to_uniform
-from trigger import CompetenceDropTrigger
-from evaluate import auroc, aupr, fpr95, ece
-from contract import build_output
 
-cfg = yaml.safe_load(open("config.yaml"))
 import random
-random.seed(cfg["seed"]); np.random.seed(cfg["seed"]); torch.manual_seed(cfg["seed"])
-torch.use_deterministic_algorithms(True)
-K = cfg["k_classes"]; tr = cfg["train"]
-rng = np.random.default_rng(cfg["seed"]); torch.manual_seed(cfg["seed"])
 
-Xtr,ytr = sample_id(3000,rng); Xte,yte = sample_id(1000,rng); Xood = sample_ood(800,rng)
+import numpy as np
+import torch
+import yaml
+from contract import build_output
+from edl import EDLNet, edl_mse_loss, kl_to_uniform, uncertainty
+from evaluate import aupr, auroc, ece, fpr95
+from synthetic_data import D, Normalizer, sample_id, sample_ood
+from trigger import CompetenceDropTrigger
+
+with open("config.yaml") as fh:
+    cfg = yaml.safe_load(fh)
+
+random.seed(cfg["seed"])
+np.random.seed(cfg["seed"])
+torch.manual_seed(cfg["seed"])
+torch.use_deterministic_algorithms(True)
+K = cfg["k_classes"]
+tr = cfg["train"]
+rng = np.random.default_rng(cfg["seed"])
+torch.manual_seed(cfg["seed"])
+
+Xtr,ytr = sample_id(3000,rng)
+Xte,yte = sample_id(1000,rng)
+Xood = sample_ood(800,rng)
 nz = Normalizer().fit(Xtr)
 Xtr_,Xte_,Xood_ = nz(Xtr), nz(Xte), nz(Xood)
 
-m = EDLNet(D,K); opt = torch.optim.Adam(m.parameters(), tr["lr"], weight_decay=tr["weight_decay"])
-Xt = torch.tensor(Xtr_); yt = torch.tensor(ytr); N=len(Xt)
+m = EDLNet(D,K)
+opt = torch.optim.Adam(m.parameters(), tr["lr"], weight_decay=tr["weight_decay"])
+Xt = torch.tensor(Xtr_)
+yt = torch.tensor(ytr)
+N = len(Xt)
 for ep in range(tr["epochs"]):
     perm = torch.randperm(N)
     for i in range(0,N,tr["batch_size"]):
-        idx = perm[i:i+tr["batch_size"]]; xb = Xt[idx]
+        idx = perm[i:i+tr["batch_size"]]
+        xb = Xt[idx]
         xo = xb + torch.randn_like(xb)*tr["ood_proxy_sigma"]          # far-OOD proxy
         loss = edl_mse_loss(m(xb),yt[idx],ep,tr["kl_anneal_epochs"]) \
                + tr["ood_reg_weight"]*kl_to_uniform(m(xo)+1.0).mean()
-        opt.zero_grad(); loss.backward(); opt.step()
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
 
 with torch.no_grad():
     u_id,p_id,e_id = uncertainty(m(torch.tensor(Xte_)))
@@ -54,10 +72,12 @@ print(f"trigger fires  ID / OOD     : {(u_id>trig.thr).mean():.3f} / {(u_ood>tri
 
 # --- emit a few M2->M3 messages (the mock stream Saabir consumes now) ---
 print("\nSample M2 -> M3 contract messages (mixed normal + cyclone):")
-stream = list(zip(u_id[:2],p_id[:2])) + list(zip(u_ood[:2],p_ood.numpy()[:2]))
+stream = (list(zip(u_id[:2], p_id[:2], strict=True))
+          + list(zip(u_ood[:2], p_ood.numpy()[:2], strict=True)))
 t2 = CompetenceDropTrigger(trig.thr, 1)
 with open("sample_m2_to_m3.jsonl","w") as f:
     for u,p in stream:
         msg = build_output(u,p,0.0,t2.update(u))
-        f.write(msg.to_json()+"\n"); print("  "+msg.to_json())
+        f.write(msg.to_json()+"\n")
+        print("  "+msg.to_json())
 print("\n(sample_m2_to_m3.jsonl written)")
