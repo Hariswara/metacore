@@ -92,6 +92,46 @@ the cyclones ahead of them are removed). The explicit `observed_fraction` floor 
 catches them: the two-condition trigger fires on 1.000 of cyclones **and** 1.000 of
 blackouts, at 0.050 on normal operation.
 
+## Baselines and the ablation (`python benchmark.py` → `comparison_table.json`)
+
+Same architecture, normalisation and training data throughout, so the comparison is about
+the uncertainty mechanism and nothing else.
+
+| method | AUROC | AUPR | FPR95 | ECE | ID acc | ms/sample |
+|---|---|---|---|---|---|---|
+| Softmax max-prob | 0.024 | 0.430 | 1.000 | 0.048 | 0.945 | 0.0003 |
+| MC-Dropout (T=20) | 0.000 | 0.265 | 1.000 | 0.017 | 0.948 | 0.0338 |
+| **EDL (ours)** | **0.999** | **0.987** | **0.003** | 0.047 | 0.961 | 0.0005 |
+| EDL, no OOD-reg (ablation) | 0.000 | 0.265 | 1.000 | 0.025 | 0.957 | 0.0005 |
+
+Two findings, and the second is the contribution.
+
+**1. The baselines do not merely underperform — they invert.** An AUROC of 0.024 means the
+score is *anti*-correlated with being out of distribution. Measured directly: the softmax
+network's max probability is **1.0000 on every one of the 800 cyclone states**, against a
+mean of 0.9909 on normal ones. It is more certain about conditions it has never seen than
+about the ones it was trained on. This is the documented behaviour of ReLU networks far
+from their training data (Hein et al., *Why ReLU networks yield high-confidence
+predictions far away from the training data*, CVPR 2019), not an artefact of this setup —
+which is why a better-tuned baseline would not rescue it. AUPR says the same thing: the
+positive base rate here is 0.444, and the failing methods sit at 0.265, below chance.
+
+**2. The OOD-aware regulariser is load-bearing, not the Dirichlet head.** The ablation is
+identical in every respect except `ood_reg = 0`, and it collapses to 0.000 — the same
+failure as the softmax baseline. Evidential output on its own does not solve far-OOD on
+tabular data; driving evidence → 0 on far proxy points is what does.
+
+Worth noting what the table does *not* say: the baselines rank in-distribution errors
+perfectly acceptably (softmax AURC 0.006 against our 0.003). They fail specifically at
+recognising a state they have never seen — which is the one thing this module exists to do.
+
+MC-Dropout is both inverted and 68× slower per sample, because its score costs T=20
+forward passes. On a gate that runs per control step, that is the difference between
+viable and not.
+
+Every claim above is asserted as an *ordering* in `tests/test_baselines.py` at reduced
+scale (~5s) — exact values move with the seed, the ranking does not.
+
 ## Figures (optional `viz` extra)
 
 Metrics are computed in NumPy and emitted as **data** — `run_demo.py` writes
@@ -117,6 +157,8 @@ python run_demo.py
 - `trigger.py` — two-condition competence-drop trigger (value threshold OR sensing floor, hysteresis, reason).
 - `evaluate.py` — AUROC / AUPR / FPR95 / ECE plus risk-coverage / AURC, reliability and retained-composition **tables** (NumPy, no plotting).
 - `plots.py` — renders those tables (reliability diagram, risk-coverage curve). Needs the `viz` extra; imported by nothing else.
+- `baselines.py` — softmax max-prob, MC-Dropout, and the EDL / EDL-without-OOD-reg pair, on one architecture.
+- `benchmark.py` + `comparison_table.json` — full-scale comparison **script** (not run in CI) and the table it writes.
 - `contract.py` + `M2_TO_M3_CONTRACT.md` — **M2→M3 message + mock stream for Saabir**.
 - `run_demo.py` — end-to-end prototype; writes `sample_m2_to_m3.jsonl` and `eval_tables.json`.
 - `config.yaml` — K, features, training and trigger settings (retune without code changes).
