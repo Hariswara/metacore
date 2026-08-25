@@ -55,8 +55,13 @@ def sample_ood(n, rng):
     return x
 
 class Normalizer:
-    def fit(self, x):  self.mu = x.mean(0); self.sd = x.std(0)+1e-6; return self
-    def __call__(self, x): return ((x-self.mu)/self.sd).astype(np.float32)
+    def fit(self, x):
+        self.mu = x.mean(0)
+        self.sd = x.std(0)+1e-6
+        return self
+
+    def __call__(self, x):
+        return ((x-self.mu)/self.sd).astype(np.float32)
 
 
 # --- the same draws, wrapped in the M1 -> M2 contract -----------------------
