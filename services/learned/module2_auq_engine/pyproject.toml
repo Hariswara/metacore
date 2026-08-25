@@ -6,7 +6,11 @@ requires-python = ">=3.11"
 dependencies = [
   "grpcio>=1.66",
   "pydantic>=2.9",
-  "torch>=2.4",
+  # Pinned to a minor version, not >=2.4. Training here is seeded and bit-reproducible
+  # in-process, but the reported metrics still moved between environments because the
+  # torch version moved with them -- a floating major dependency is the reproducibility
+  # bug, not the seeding. Raise this deliberately and re-run run_demo.py when you do.
+  "torch>=2.11,<2.12",
   "numpy>=2.0",
 ]
 
