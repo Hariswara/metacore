@@ -19,8 +19,13 @@ from trigger import (
     CompetenceDropTrigger,
 )
 
-OF_FLOOR = 0.4
+OF_FLOOR = 0.35            # config.yaml; see the rationale there
 FALSE_ALARM_RATE = 0.05
+
+# The real contract: 12 of 28 features are QUALITY_OBSERVED.
+NOMINAL_OF = 12/28         # 0.4286 -- must NOT fire
+ONE_FEATURE_LOST = 11/28   # 0.3929 -- must NOT fire: jitter, not a lost channel
+TEMPORAL_BLOCK_LOST = 8/28 # 0.2857 -- MUST fire: a whole modality is gone
 
 
 def _value_u(evidence, states):
@@ -96,6 +101,17 @@ def test_compound_failure_reports_both(calibrated):
 
     assert fired.mean() == 1.0
     assert all(r == REASON_BOTH for r in reasons)
+
+
+def test_floor_sits_between_jitter_and_modality_loss():
+    """The recalibration. Nominal is 0.4286 on the real 28-feature vector, so a floor of
+    0.4 (calibrated against the old 8-feature mock) would have fired on a single stray
+    feature drop. 0.35 tolerates that and still catches a lost modality."""
+    trig = CompetenceDropTrigger(value_threshold=1e9, of_floor=OF_FLOOR, hysteresis=1)
+
+    assert trig.update(0.0, NOMINAL_OF) == (False, REASON_NONE)
+    assert trig.update(0.0, ONE_FEATURE_LOST) == (False, REASON_NONE)
+    assert trig.update(0.0, TEMPORAL_BLOCK_LOST) == (True, REASON_SENSING)
 
 
 def test_hysteresis_debounces_a_single_step_spike():
