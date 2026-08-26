@@ -56,6 +56,15 @@ from pathlib import Path
 
 QUALITY_INTERPOLATED = "QUALITY_INTERPOLATED"
 
+# Artifact identity, written into load_parameters.json so a consumer can detect a shape it was not
+# built for. Distinct from the StateRepresentation contract version in
+# metacore_contracts.state_schema -- this versions a calibration artifact, not a wire message, and
+# conflating the two would let a reader check the wrong one. Bump the minor on an added field, the
+# major on a removed or re-meaning one. Kept as a literal rather than imported: these stages are
+# stdlib-only by design (ADR 0004) and must not acquire protobuf to state their own version.
+ARTIFACT_NAME = "island_load_hourly"
+ARTIFACT_VERSION = "1.0.0"
+
 # Ledger generating system -> the island whose load it serves. Eluvaitivu's two plants feed one
 # load: that is what makes the Oct-Dec 2025 hybrid collapse legible as a clean substitution, with
 # island demand flat while the split swings. Load is modelled per island; the supply split stays
@@ -332,6 +341,9 @@ def downscale(tidy_csv: str | Path, weather_dir: str | Path) -> tuple[list[dict]
         }
 
     manifest = {
+        "artifact": ARTIFACT_NAME,
+        "version": ARTIFACT_VERSION,
+        "produced_by": "module1.data.load",
         "stage": "load_downscale",
         "quality": QUALITY_INTERPOLATED,
         "measured_inputs": {
@@ -447,6 +459,26 @@ def check(load_csv: str | Path, tidy_csv: str | Path) -> list[str]:
         if not LOAD_FACTOR_BAND[0] <= lf <= LOAD_FACTOR_BAND[1]:
             failures.append(
                 f"{island}: load factor {lf:.3f} outside plausible {LOAD_FACTOR_BAND}"
+            )
+
+    # 6. The sidecar identifies itself. A consumer that reads load_parameters.json to decide how
+    #    to interpret the CSV needs to know which shape it is holding; an unversioned manifest
+    #    forces it to guess, and a guess that happens to work today breaks silently on the next
+    #    change. Cheap to check here, expensive to discover in someone else's service.
+    manifest_path = Path(load_csv).with_name("load_parameters.json")
+    if not manifest_path.exists():
+        failures.append(f"{manifest_path.name}: absent -- the load table has no parameter sidecar")
+    else:
+        manifest = json.loads(manifest_path.read_text())
+        if manifest.get("artifact") != ARTIFACT_NAME:
+            failures.append(
+                f"{manifest_path.name}: artifact {manifest.get('artifact')!r}, "
+                f"expected {ARTIFACT_NAME!r}"
+            )
+        if manifest.get("version") != ARTIFACT_VERSION:
+            failures.append(
+                f"{manifest_path.name}: version {manifest.get('version')!r}, "
+                f"expected {ARTIFACT_VERSION!r} -- regenerate with `task data`"
             )
     return failures
 
