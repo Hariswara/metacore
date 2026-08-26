@@ -11,6 +11,18 @@ import "common.proto";
 // ---------------------------------------------------------------- M1 -> M2
 // The state representation. Frozen before the live stream exists so M2's evidential head can be
 // sized against a real schema rather than a guess.
+//
+// PINNED AT v1.0. The concrete values a consumer needs -- embedding_dim, the ordered
+// feature_names, per-feature units and sources, and which features are QUALITY_OBSERVED rather
+// than merely present -- live in a machine-readable pin next to the generated stubs:
+//
+//   packages/contracts/python/metacore_contracts/schema/module1_state_v1.json
+//   from metacore_contracts.state_schema import EMBEDDING_DIM, FEATURE_NAMES, SCHEMA_VERSION
+//
+// A proto cannot say what a `repeated string feature_names` contains, so that file is the half of
+// the contract that lets M2 drop its mock. embedding_dim = 64, len(feature_names) = 28.
+// Reordering or resizing is a minor bump; renaming or removing a feature is a major bump and
+// needs an adapter.
 message StateRepresentation {
   metacore.common.v1.Envelope envelope = 1;
 

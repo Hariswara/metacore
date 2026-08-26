@@ -2,20 +2,64 @@
 # Each task fans out to language-native tooling; nothing here reimplements a build system.
 version: "3"
 
+# Dev tooling is declared rather than assumed present. `task` and `buf` come from package.json and
+# land in node_modules/.bin; `dvc`, `pytest` and `ruff` come from the pyproject `dev` group and are
+# reached through `uv run`. A fresh clone therefore needs only pnpm, uv and Go.
+#
+# Binaries are referenced through {{.BIN}} rather than by bare name: Task does not let a Taskfile
+# `env:` block override PATH, so a bare `buf` would silently resolve to a global install or fail.
+vars:
+  BIN: "{{.ROOT_DIR}}/node_modules/.bin"
+
 tasks:
   setup:
     desc: Install workspace dependencies for every language lane
     cmds:
+      - pnpm install
       - uv sync --all-packages
       - go work sync
-      - pnpm install
 
   proto:
     desc: Regenerate Python / Go / TS stubs from packages/contracts/proto
     dir: packages/contracts
     cmds:
-      - buf lint
-      - buf generate
+      - "{{.BIN}}/buf lint"
+      - "{{.BIN}}/buf generate"
+      # protoc emits `import common_pb2` -- a flat import that only resolves if the package
+      # directory is itself on sys.path. Rewrite it to a package-relative import so the stubs are
+      # importable as `metacore_contracts.module1_pb2`. Idempotent; see the script's docstring.
+      - uv run --isolated --no-project python fix_python_imports.py
+
+  # Every `uv run` reshapes .venv to match its flags. The data and lint lanes therefore run
+  # --isolated: they need one tool, not the workspace, and syncing the venv down to their needs
+  # would strip the service dependencies the test lane depends on.
+  data:
+    desc: Rebuild the Module 1 calibration artifacts and run the reconciliation gates
+    cmds:
+      - uv run --isolated --with dvc dvc repro data/dvc.yaml
+
+  data:pull:
+    desc: Re-download NASA POWER meteorology (network; frozen out of the default repro)
+    cmds:
+      - uv run --isolated --with dvc dvc repro --force data/dvc.yaml:nasa_power_pull
+
+  # ADR 0004 promises the pipeline runs with nothing from data/external/. This is the proof, and
+  # it runs in CI. Deliberately not routed through DVC: DVC's job is provenance for the measured
+  # artifacts, and a stage cannot have a dependency that is legitimately absent. Outputs land in
+  # .synthetic/, which is git-ignored -- they must never be mistaken for the real artifacts.
+  data:synthetic:
+    desc: Build and gate the whole calibration pipeline on synthetic input (no CEB workbook)
+    env:
+      PYTHONPATH: services/learned/module1_state_forecasting/src
+    cmds:
+      - rm -rf .synthetic
+      - uv run python -m module1.data.synthetic build .synthetic
+      - uv run python -m module1.data.validate .synthetic/ceb_generation_tidy.csv
+      - uv run python -m module1.data.nasa_power validate .synthetic/nasa_power
+      - uv run python -m module1.data.load downscale .synthetic/ceb_generation_tidy.csv .synthetic/nasa_power .synthetic/island_load_hourly.csv
+      - uv run python -m module1.data.load validate .synthetic/island_load_hourly.csv .synthetic/ceb_generation_tidy.csv
+      - uv run python -m module1.data.scenarios build .synthetic/ceb_generation_tidy.csv .synthetic
+      - uv run python -m module1.data.scenarios validate .synthetic .synthetic/ceb_generation_tidy.csv
 
   dev:
     desc: Bring up the default compose profile
@@ -33,7 +77,7 @@ tasks:
   test:py:
     desc: Python tests for the learned services and gateway
     cmds:
-      - uv run pytest services packages
+      - uv run --all-packages --group dev pytest services packages
 
   test:core:
     desc: Deterministic core tests, isolated from the learned services
@@ -42,8 +86,17 @@ tasks:
       - uv run --isolated pytest .
 
   test:go:
+    desc: Go tests, per workspace module
+    # go.work declares no root module, so `go test ./...` from here has nothing to resolve
+    # against. Enumerate the modules instead of hardcoding them, so adding one to go.work is
+    # enough to get it tested.
     cmds:
-      - go test ./...
+      - |
+        set -eu
+        for module in $(go list -m); do
+          echo "--> $module"
+          go test "$module/..."
+        done
 
   test:web:
     dir: apps/dashboard
@@ -53,8 +106,10 @@ tasks:
   lint:
     desc: Lint every language lane
     cmds:
-      - uv run ruff check .
-      - go vet ./...
+      - uv run --isolated --with ruff ruff check .
+      - |
+        set -eu
+        for module in $(go list -m); do go vet "$module/..."; done
       - pnpm -r lint
       - bash infra/ci/check_core_purity.sh
 

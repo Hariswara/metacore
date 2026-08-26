@@ -1,0 +1,551 @@
+{
+  "artifact": "scenario_library",
+  "library_version": "1.0.0",
+  "produced_by": "module1.data.scenarios",
+  "quality": "QUALITY_OBSERVED",
+  "source": "data/processed/ceb_generation_tidy.csv (reconciled CEB ledger, monthly, per plant)",
+  "rule": {
+    "baseline": "median of the plant's own monthly energy across the record",
+    "core_ratio": 0.5,
+    "onset_ratio": 0.9,
+    "nominal_band": [
+      0.85,
+      1.15
+    ],
+    "nominal_window_months": 3
+  },
+  "counts": {
+    "out_of_distribution": 1,
+    "in_distribution": 16
+  },
+  "note": "Consumed as metacore.common.v1.ScenarioRef: scenario_id, library_version and out_of_distribution map field-for-field. The hourly load artifact carries no label column by design -- it is one series per island, and the degradation is a per-plant property that summing removes.",
+  "scenarios": [
+    {
+      "scenario_id": "eluvaitivu-hybrid-decay-2025q4",
+      "island": "Eluvaitivu",
+      "plant": "Eluvaitivu-Hybrid",
+      "event_type": "asset_degradation",
+      "start_month": "2025-10",
+      "end_month": "2025-12",
+      "months": 3,
+      "out_of_distribution": true,
+      "baseline_kwh": 8057.0,
+      "worst_ratio": 0.0324,
+      "detection_rule": "median baseline; core<0.5; onset walk-back<0.9",
+      "monthly": [
+        {
+          "month": "2025-10",
+          "kwh": 5653.0,
+          "ratio": 0.7016
+        },
+        {
+          "month": "2025-11",
+          "kwh": 1097.0,
+          "ratio": 0.1362
+        },
+        {
+          "month": "2025-12",
+          "kwh": 261.0,
+          "ratio": 0.0324
+        }
+      ],
+      "note": "Visible only in the per-plant monthly ledger. island_load_hourly.csv sums both Eluvaitivu plants: across this window the plant falls 73.4% while island demand falls 10.3%, a 7.1x attenuation, because the diesel set absorbs the difference."
+    },
+    {
+      "scenario_id": "analaitivu-nominal-2024q2",
+      "island": "Analaitivu",
+      "plant": "",
+      "event_type": "nominal",
+      "start_month": "2024-04",
+      "end_month": "2024-06",
+      "months": 3,
+      "out_of_distribution": false,
+      "baseline_kwh": 33955.7,
+      "worst_ratio": 0.8734,
+      "detection_rule": "every plant within (0.85, 1.15) of its own median",
+      "monthly": [
+        {
+          "month": "2024-04",
+          "kwh": 36196.0,
+          "ratio": null
+        },
+        {
+          "month": "2024-05",
+          "kwh": 30688.0,
+          "ratio": null
+        },
+        {
+          "month": "2024-06",
+          "kwh": 34983.0,
+          "ratio": null
+        }
+      ],
+      "note": "In-distribution control window."
+    },
+    {
+      "scenario_id": "analaitivu-nominal-2024q3",
+      "island": "Analaitivu",
+      "plant": "",
+      "event_type": "nominal",
+      "start_month": "2024-07",
+      "end_month": "2024-09",
+      "months": 3,
+      "out_of_distribution": false,
+      "baseline_kwh": 36343.7,
+      "worst_ratio": 1.0043,
+      "detection_rule": "every plant within (0.85, 1.15) of its own median",
+      "monthly": [
+        {
+          "month": "2024-07",
+          "kwh": 37127.0,
+          "ratio": null
+        },
+        {
+          "month": "2024-08",
+          "kwh": 36616.0,
+          "ratio": null
+        },
+        {
+          "month": "2024-09",
+          "kwh": 35288.0,
+          "ratio": null
+        }
+      ],
+      "note": "In-distribution control window."
+    },
+    {
+      "scenario_id": "analaitivu-nominal-2024q4",
+      "island": "Analaitivu",
+      "plant": "",
+      "event_type": "nominal",
+      "start_month": "2024-10",
+      "end_month": "2024-12",
+      "months": 3,
+      "out_of_distribution": false,
+      "baseline_kwh": 33030.3,
+      "worst_ratio": 0.8579,
+      "detection_rule": "every plant within (0.85, 1.15) of its own median",
+      "monthly": [
+        {
+          "month": "2024-10",
+          "kwh": 34832.0,
+          "ratio": null
+        },
+        {
+          "month": "2024-11",
+          "kwh": 30141.0,
+          "ratio": null
+        },
+        {
+          "month": "2024-12",
+          "kwh": 34118.0,
+          "ratio": null
+        }
+      ],
+      "note": "In-distribution control window."
+    },
+    {
+      "scenario_id": "analaitivu-nominal-2025q2",
+      "island": "Analaitivu",
+      "plant": "",
+      "event_type": "nominal",
+      "start_month": "2025-04",
+      "end_month": "2025-06",
+      "months": 3,
+      "out_of_distribution": false,
+      "baseline_kwh": 37162.3,
+      "worst_ratio": 0.9092,
+      "detection_rule": "every plant within (0.85, 1.15) of its own median",
+      "monthly": [
+        {
+          "month": "2025-04",
+          "kwh": 31944.0,
+          "ratio": null
+        },
+        {
+          "month": "2025-05",
+          "kwh": 39391.0,
+          "ratio": null
+        },
+        {
+          "month": "2025-06",
+          "kwh": 40152.0,
+          "ratio": null
+        }
+      ],
+      "note": "In-distribution control window."
+    },
+    {
+      "scenario_id": "analaitivu-nominal-2025q3",
+      "island": "Analaitivu",
+      "plant": "",
+      "event_type": "nominal",
+      "start_month": "2025-07",
+      "end_month": "2025-09",
+      "months": 3,
+      "out_of_distribution": false,
+      "baseline_kwh": 38915.0,
+      "worst_ratio": 1.0927,
+      "detection_rule": "every plant within (0.85, 1.15) of its own median",
+      "monthly": [
+        {
+          "month": "2025-07",
+          "kwh": 39133.0,
+          "ratio": null
+        },
+        {
+          "month": "2025-08",
+          "kwh": 38391.0,
+          "ratio": null
+        },
+        {
+          "month": "2025-09",
+          "kwh": 39221.0,
+          "ratio": null
+        }
+      ],
+      "note": "In-distribution control window."
+    },
+    {
+      "scenario_id": "delft-neduntivu-nominal-2024q1",
+      "island": "Delft-Neduntivu",
+      "plant": "",
+      "event_type": "nominal",
+      "start_month": "2024-01",
+      "end_month": "2024-03",
+      "months": 3,
+      "out_of_distribution": false,
+      "baseline_kwh": 83020.7,
+      "worst_ratio": 0.8833,
+      "detection_rule": "every plant within (0.85, 1.15) of its own median",
+      "monthly": [
+        {
+          "month": "2024-01",
+          "kwh": 82423.0,
+          "ratio": null
+        },
+        {
+          "month": "2024-02",
+          "kwh": 80520.0,
+          "ratio": null
+        },
+        {
+          "month": "2024-03",
+          "kwh": 86119.0,
+          "ratio": null
+        }
+      ],
+      "note": "In-distribution control window."
+    },
+    {
+      "scenario_id": "delft-neduntivu-nominal-2024q2",
+      "island": "Delft-Neduntivu",
+      "plant": "",
+      "event_type": "nominal",
+      "start_month": "2024-04",
+      "end_month": "2024-06",
+      "months": 3,
+      "out_of_distribution": false,
+      "baseline_kwh": 90796.0,
+      "worst_ratio": 0.973,
+      "detection_rule": "every plant within (0.85, 1.15) of its own median",
+      "monthly": [
+        {
+          "month": "2024-04",
+          "kwh": 93001.0,
+          "ratio": null
+        },
+        {
+          "month": "2024-05",
+          "kwh": 90692.0,
+          "ratio": null
+        },
+        {
+          "month": "2024-06",
+          "kwh": 88695.0,
+          "ratio": null
+        }
+      ],
+      "note": "In-distribution control window."
+    },
+    {
+      "scenario_id": "delft-neduntivu-nominal-2024q3",
+      "island": "Delft-Neduntivu",
+      "plant": "",
+      "event_type": "nominal",
+      "start_month": "2024-07",
+      "end_month": "2024-09",
+      "months": 3,
+      "out_of_distribution": false,
+      "baseline_kwh": 94559.7,
+      "worst_ratio": 1.0174,
+      "detection_rule": "every plant within (0.85, 1.15) of its own median",
+      "monthly": [
+        {
+          "month": "2024-07",
+          "kwh": 95228.0,
+          "ratio": null
+        },
+        {
+          "month": "2024-08",
+          "kwh": 95706.0,
+          "ratio": null
+        },
+        {
+          "month": "2024-09",
+          "kwh": 92745.0,
+          "ratio": null
+        }
+      ],
+      "note": "In-distribution control window."
+    },
+    {
+      "scenario_id": "delft-neduntivu-nominal-2024q4",
+      "island": "Delft-Neduntivu",
+      "plant": "",
+      "event_type": "nominal",
+      "start_month": "2024-10",
+      "end_month": "2024-12",
+      "months": 3,
+      "out_of_distribution": false,
+      "baseline_kwh": 86300.7,
+      "worst_ratio": 0.9023,
+      "detection_rule": "every plant within (0.85, 1.15) of its own median",
+      "monthly": [
+        {
+          "month": "2024-10",
+          "kwh": 86641.0,
+          "ratio": null
+        },
+        {
+          "month": "2024-11",
+          "kwh": 82253.0,
+          "ratio": null
+        },
+        {
+          "month": "2024-12",
+          "kwh": 90008.0,
+          "ratio": null
+        }
+      ],
+      "note": "In-distribution control window."
+    },
+    {
+      "scenario_id": "delft-neduntivu-nominal-2025q1",
+      "island": "Delft-Neduntivu",
+      "plant": "",
+      "event_type": "nominal",
+      "start_month": "2025-03",
+      "end_month": "2025-05",
+      "months": 3,
+      "out_of_distribution": false,
+      "baseline_kwh": 97693.3,
+      "worst_ratio": 0.9819,
+      "detection_rule": "every plant within (0.85, 1.15) of its own median",
+      "monthly": [
+        {
+          "month": "2025-03",
+          "kwh": 89509.0,
+          "ratio": null
+        },
+        {
+          "month": "2025-04",
+          "kwh": 99046.0,
+          "ratio": null
+        },
+        {
+          "month": "2025-05",
+          "kwh": 104525.0,
+          "ratio": null
+        }
+      ],
+      "note": "In-distribution control window."
+    },
+    {
+      "scenario_id": "delft-neduntivu-nominal-2025q2",
+      "island": "Delft-Neduntivu",
+      "plant": "",
+      "event_type": "nominal",
+      "start_month": "2025-06",
+      "end_month": "2025-08",
+      "months": 3,
+      "out_of_distribution": false,
+      "baseline_kwh": 93286.7,
+      "worst_ratio": 0.9956,
+      "detection_rule": "every plant within (0.85, 1.15) of its own median",
+      "monthly": [
+        {
+          "month": "2025-06",
+          "kwh": 90750.0,
+          "ratio": null
+        },
+        {
+          "month": "2025-07",
+          "kwh": 94380.0,
+          "ratio": null
+        },
+        {
+          "month": "2025-08",
+          "kwh": 94730.0,
+          "ratio": null
+        }
+      ],
+      "note": "In-distribution control window."
+    },
+    {
+      "scenario_id": "eluvaitivu-nominal-2024q1",
+      "island": "Eluvaitivu",
+      "plant": "",
+      "event_type": "nominal",
+      "start_month": "2024-03",
+      "end_month": "2024-05",
+      "months": 3,
+      "out_of_distribution": false,
+      "baseline_kwh": 16808.3,
+      "worst_ratio": 0.9403,
+      "detection_rule": "every plant within (0.85, 1.15) of its own median",
+      "monthly": [
+        {
+          "month": "2024-03",
+          "kwh": 15840.0,
+          "ratio": null
+        },
+        {
+          "month": "2024-04",
+          "kwh": 17094.0,
+          "ratio": null
+        },
+        {
+          "month": "2024-05",
+          "kwh": 17491.0,
+          "ratio": null
+        }
+      ],
+      "note": "In-distribution control window."
+    },
+    {
+      "scenario_id": "nainativu-nominal-2024q1",
+      "island": "Nainativu",
+      "plant": "",
+      "event_type": "nominal",
+      "start_month": "2024-01",
+      "end_month": "2024-03",
+      "months": 3,
+      "out_of_distribution": false,
+      "baseline_kwh": 94603.3,
+      "worst_ratio": 0.8859,
+      "detection_rule": "every plant within (0.85, 1.15) of its own median",
+      "monthly": [
+        {
+          "month": "2024-01",
+          "kwh": 96670.00000000012,
+          "ratio": null
+        },
+        {
+          "month": "2024-02",
+          "kwh": 88850.00000000038,
+          "ratio": null
+        },
+        {
+          "month": "2024-03",
+          "kwh": 98290.0,
+          "ratio": null
+        }
+      ],
+      "note": "In-distribution control window."
+    },
+    {
+      "scenario_id": "nainativu-nominal-2024q2",
+      "island": "Nainativu",
+      "plant": "",
+      "event_type": "nominal",
+      "start_month": "2024-04",
+      "end_month": "2024-06",
+      "months": 3,
+      "out_of_distribution": false,
+      "baseline_kwh": 106653.3,
+      "worst_ratio": 0.9993,
+      "detection_rule": "every plant within (0.85, 1.15) of its own median",
+      "monthly": [
+        {
+          "month": "2024-04",
+          "kwh": 107099.99999999946,
+          "ratio": null
+        },
+        {
+          "month": "2024-05",
+          "kwh": 100220.00000000026,
+          "ratio": null
+        },
+        {
+          "month": "2024-06",
+          "kwh": 112640.00000000033,
+          "ratio": null
+        }
+      ],
+      "note": "In-distribution control window."
+    },
+    {
+      "scenario_id": "nainativu-nominal-2024q3",
+      "island": "Nainativu",
+      "plant": "",
+      "event_type": "nominal",
+      "start_month": "2024-07",
+      "end_month": "2024-09",
+      "months": 3,
+      "out_of_distribution": false,
+      "baseline_kwh": 103833.3,
+      "worst_ratio": 1.0007,
+      "detection_rule": "every plant within (0.85, 1.15) of its own median",
+      "monthly": [
+        {
+          "month": "2024-07",
+          "kwh": 107380.00000000009,
+          "ratio": null
+        },
+        {
+          "month": "2024-08",
+          "kwh": 103760.00000000023,
+          "ratio": null
+        },
+        {
+          "month": "2024-09",
+          "kwh": 100359.99999999923,
+          "ratio": null
+        }
+      ],
+      "note": "In-distribution control window."
+    },
+    {
+      "scenario_id": "nainativu-nominal-2025q1",
+      "island": "Nainativu",
+      "plant": "",
+      "event_type": "nominal",
+      "start_month": "2025-03",
+      "end_month": "2025-05",
+      "months": 3,
+      "out_of_distribution": false,
+      "baseline_kwh": 101803.3,
+      "worst_ratio": 0.9703,
+      "detection_rule": "every plant within (0.85, 1.15) of its own median",
+      "monthly": [
+        {
+          "month": "2025-03",
+          "kwh": 97310.0,
+          "ratio": null
+        },
+        {
+          "month": "2025-04",
+          "kwh": 106070.0,
+          "ratio": null
+        },
+        {
+          "month": "2025-05",
+          "kwh": 102030.0,
+          "ratio": null
+        }
+      ],
+      "note": "In-distribution control window."
+    }
+  ]
+}

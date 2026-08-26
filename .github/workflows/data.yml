@@ -1,0 +1,72 @@
+# ADR 0004: "nothing in data/external/ is allowed to become a build requirement". This lane is
+# what holds that promise to account. It runs the whole Module 1 calibration pipeline -- both
+# reconciliation gates, the weather gate, the load gate and the scenario gate -- against a
+# generated stand-in input set, with no CEB workbook and no access to the DVC remote.
+#
+# The gates are not relaxed for it. If a gate has to be weakened to let synthetic data through,
+# that is the signal the fallback has stopped standing in for the real thing.
+name: data
+
+on:
+  push:
+    paths:
+      - "services/learned/module1_state_forecasting/**"
+      - "data/dvc.yaml"
+      - ".github/workflows/data.yml"
+  pull_request:
+
+jobs:
+  synthetic-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install uv
+      # --no-project: every calibration stage is standard-library only by design, so this lane
+      # must not need Module 1's ML dependency tree resolved to prove the data path works.
+      - name: Build the synthetic input set
+        run: uv run --no-project python -m module1.data.synthetic build .synthetic
+        env:
+          PYTHONPATH: services/learned/module1_state_forecasting/src
+
+      - name: Reconciliation gate
+        run: uv run --no-project python -m module1.data.validate .synthetic/ceb_generation_tidy.csv
+        env:
+          PYTHONPATH: services/learned/module1_state_forecasting/src
+
+      - name: Meteorology gate
+        run: uv run --no-project python -m module1.data.nasa_power validate .synthetic/nasa_power
+        env:
+          PYTHONPATH: services/learned/module1_state_forecasting/src
+
+      - name: Downscale load and gate it
+        run: |
+          uv run --no-project python -m module1.data.load downscale \
+            .synthetic/ceb_generation_tidy.csv .synthetic/nasa_power \
+            .synthetic/island_load_hourly.csv
+          uv run --no-project python -m module1.data.load validate \
+            .synthetic/island_load_hourly.csv .synthetic/ceb_generation_tidy.csv
+        env:
+          PYTHONPATH: services/learned/module1_state_forecasting/src
+
+      - name: Build the scenario library and gate it
+        run: |
+          uv run --no-project python -m module1.data.scenarios build \
+            .synthetic/ceb_generation_tidy.csv .synthetic
+          uv run --no-project python -m module1.data.scenarios validate \
+            .synthetic .synthetic/ceb_generation_tidy.csv
+        env:
+          PYTHONPATH: services/learned/module1_state_forecasting/src
+
+      - name: Assert the outputs are labelled synthetic
+        run: |
+          python - <<'PY'
+          import json, sys
+          prov = json.load(open(".synthetic/PROVENANCE.json"))
+          manifest = json.load(open(".synthetic/nasa_power/manifest.json"))
+          assert prov["synthetic"] is True, prov
+          assert manifest["synthetic"] is True, manifest
+          assert "Do not publish" in prov["warning"], prov
+          print("provenance OK -- outputs are labelled synthetic")
+          PY

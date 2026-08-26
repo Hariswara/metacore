@@ -47,9 +47,21 @@ without an `APPROVE`. See [`docs/architecture/learned-vs-deterministic.md`](docs
 
 ## Quickstart
 
+Prerequisites are **pnpm, uv and Go** — nothing else. `task`, `buf`, `dvc`, `pytest` and `ruff` are
+declared dev dependencies (package.json and the pyproject `dev` group), so they install with the
+repo rather than being expected on the machine.
+
 ```bash
-task setup     # install per-language toolchains and workspace deps
+pnpm install              # brings in task + buf, pinned
+pnpm exec task setup      # uv sync --all-packages, go work sync
+```
+
+`task` then lives at `node_modules/.bin/task`; put that directory on your PATH, or keep prefixing
+with `pnpm exec`.
+
+```bash
 task proto     # regenerate Python / Go / TS stubs from packages/contracts/proto
+task data      # rebuild Module 1 calibration artifacts, run the reconciliation gate
 task test      # run every language lane
 task dev       # docker compose up the default profile
 ```

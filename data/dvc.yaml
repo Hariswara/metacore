@@ -1,3 +1,156 @@
-# DVC stages. Add one stage per reproducible transformation; keep raw pulls separate from
-# feature engineering so a schema change does not force a re-download.
-stages: {}
+# DVC stages for the Module 1 calibration path (ADR 0004 — the offline half of ingestion).
+# Raw pulls stay separate from feature engineering so a schema change does not force a re-download.
+#
+# `wdir: ..` puts every path in this file at repo root, matching how the commands are run by hand.
+# PYTHONPATH is set per-stage rather than assuming `uv sync --all-packages`: these stages are
+# stdlib-only on purpose and must not need Module 1's ML dependencies resolved to run.
+
+stages:
+
+  ceb_tidy:
+    wdir: ..
+    desc: >
+      CEB Jaffna generation ledger (2024-2025 monthly, 5 island systems) into a long-format
+      calibration table with derived specific fuel consumption and unit costs.
+    cmd: >
+      PYTHONPATH=services/learned/module1_state_forecasting/src
+      python -m module1.data.ceb
+      data/external/ceb_jaffna/Generation_2024_2025.xlsx
+      data/processed/ceb_generation_tidy.csv
+    deps:
+      - data/external/ceb_jaffna/Generation_2024_2025.xlsx
+      - services/learned/module1_state_forecasting/src/module1/data/ceb.py
+      - services/learned/module1_state_forecasting/src/module1/data/xlsx.py
+    outs:
+      - data/processed/ceb_generation_tidy.csv:
+          cache: false
+
+  ceb_reconcile:
+    wdir: ..
+    desc: >
+      Gate: reconcile every annual total against the printed summary CEB produced independently
+      of the spreadsheet, and re-check the per-row fuel and transport identities. Fails the
+      pipeline rather than warning — a column shift here silently moves every downstream
+      parameter, and there is no held-out telemetry that would catch it later.
+    cmd: >
+      PYTHONPATH=services/learned/module1_state_forecasting/src
+      python -m module1.data.validate
+      data/processed/ceb_generation_tidy.csv
+    deps:
+      - data/processed/ceb_generation_tidy.csv
+      - services/learned/module1_state_forecasting/src/module1/data/validate.py
+    always_changed: false
+
+  nasa_power_pull:
+    wdir: ..
+    frozen: true
+    desc: >
+      Two years of hourly irradiance, wind, temperature, humidity and precipitation for the four
+      islands, from NASA POWER. Open data, so unlike data/external this is allowed to be a build
+      dependency — it is the replacement for the Rs 75,000 Department of Meteorology quotation.
+      Frozen: it is a network pull of ~70,000 site-hours, and re-running it on every `dvc repro`
+      would be rude to a free public API. Refresh deliberately with
+      `dvc repro --force data/dvc.yaml:nasa_power_pull`.
+    cmd: >
+      PYTHONPATH=services/learned/module1_state_forecasting/src
+      python -m module1.data.nasa_power fetch data/raw/nasa_power
+      --start 20240101 --end 20251231
+    outs:
+      - data/raw/nasa_power:
+          cache: false
+
+  nasa_power_check:
+    wdir: ..
+    desc: >
+      Gate: hour count, no fill values surviving as numbers, no negative irradiance or wind, and
+      the physical sanity checks (dark at local midnight, lit at local midday). Also the stage
+      that keeps the measured spatial-resolution finding visible.
+    cmd: >
+      PYTHONPATH=services/learned/module1_state_forecasting/src
+      python -m module1.data.nasa_power validate data/raw/nasa_power
+    deps:
+      - data/raw/nasa_power
+      - services/learned/module1_state_forecasting/src/module1/data/nasa_power.py
+
+  load_downscale:
+    wdir: ..
+    desc: >
+      Monthly island energy -> hourly load, 2024-2025, four islands. Closes the resolution gap
+      between a monthly ledger and a dispatch decision. The shape is constructed, not recovered;
+      what is measured (monthly energy, installed capacity, Nainativu's 460 kVA reported maximum
+      demand) is enforced, and what is assumed (the diurnal curve, the temperature coefficient) is
+      written to load_parameters.json alongside the output. Every row is QUALITY_INTERPOLATED.
+    cmd: >
+      PYTHONPATH=services/learned/module1_state_forecasting/src
+      python -m module1.data.load downscale
+      data/processed/ceb_generation_tidy.csv
+      data/raw/nasa_power
+      data/processed/island_load_hourly.csv
+    deps:
+      - data/processed/ceb_generation_tidy.csv
+      - data/raw/nasa_power
+      - services/learned/module1_state_forecasting/src/module1/data/load.py
+    outs:
+      - data/processed/island_load_hourly.csv:
+          cache: false
+      - data/processed/load_parameters.json:
+          cache: false
+
+  load_check:
+    wdir: ..
+    desc: >
+      Gate: every month reconciles back to the CEB ledger exactly, hourly coverage is complete,
+      no peak exceeds installed genset capacity, the reported maximum demand is reproduced within
+      the power-factor band, load factors are physically plausible, and no row claims to be
+      observed. Energy conservation is the load-bearing check -- a wrong shape must not be able
+      to become a wrong energy balance.
+    cmd: >
+      PYTHONPATH=services/learned/module1_state_forecasting/src
+      python -m module1.data.load validate
+      data/processed/island_load_hourly.csv
+      data/processed/ceb_generation_tidy.csv
+    deps:
+      - data/processed/island_load_hourly.csv
+      - data/processed/ceb_generation_tidy.csv
+      - services/learned/module1_state_forecasting/src/module1/data/load.py
+
+  scenario_library:
+    wdir: ..
+    desc: >
+      The shared ID/OOD scenario library (common.proto puts it in M1's hands). Derives the
+      labelled episodes M2's out-of-distribution evaluation selects on, from the monthly
+      per-plant ledger. Necessary because island_load_hourly.csv sums both Eluvaitivu plants
+      into one island demand -- correct for dispatch and power flow, but it removes the 2025 Q4
+      hybrid degradation, which is a per-plant property. The window is derived by a stated rule
+      applied uniformly to all five plants, not hand-placed.
+    cmd: >
+      PYTHONPATH=services/learned/module1_state_forecasting/src
+      python -m module1.data.scenarios build
+      data/processed/ceb_generation_tidy.csv
+      data/processed
+    deps:
+      - data/processed/ceb_generation_tidy.csv
+      - services/learned/module1_state_forecasting/src/module1/data/scenarios.py
+    outs:
+      - data/processed/events.csv:
+          cache: false
+      - data/processed/scenario_library.json:
+          cache: false
+
+  scenario_check:
+    wdir: ..
+    desc: >
+      Gate: the committed library still reproduces from the ledger, scenario ids are unique, both
+      distribution classes are populated, and the Eluvaitivu-Hybrid degradation is present and
+      labelled out-of-distribution. The reproduction check is the load-bearing one -- it is what
+      stops the labels drifting into hand-maintained constants once the numbers look settled.
+    cmd: >
+      PYTHONPATH=services/learned/module1_state_forecasting/src
+      python -m module1.data.scenarios validate
+      data/processed
+      data/processed/ceb_generation_tidy.csv
+    deps:
+      - data/processed/events.csv
+      - data/processed/scenario_library.json
+      - data/processed/ceb_generation_tidy.csv
+      - services/learned/module1_state_forecasting/src/module1/data/scenarios.py

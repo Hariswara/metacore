@@ -1,0 +1,281 @@
+{
+  "source": "NASA POWER",
+  "endpoint": "https://power.larc.nasa.gov/api/temporal/hourly/point",
+  "community": "RE",
+  "temporal": "hourly",
+  "requested_start": "20240101",
+  "requested_end": "20251231",
+  "parameters": {
+    "ALLSKY_SFC_SW_DWN": {
+      "column": "ghi_wh_m2",
+      "unit": "Wh/m^2",
+      "source_grid": "CERES SYN1deg 1.0deg"
+    },
+    "CLRSKY_SFC_SW_DWN": {
+      "column": "ghi_clearsky_wh_m2",
+      "unit": "Wh/m^2",
+      "source_grid": "CERES SYN1deg 1.0deg"
+    },
+    "WS10M": {
+      "column": "wind_10m_ms",
+      "unit": "m/s",
+      "source_grid": "MERRA-2 0.5x0.625deg"
+    },
+    "WS50M": {
+      "column": "wind_50m_ms",
+      "unit": "m/s",
+      "source_grid": "MERRA-2 0.5x0.625deg"
+    },
+    "T2M": {
+      "column": "temp_2m_c",
+      "unit": "C",
+      "source_grid": "MERRA-2 0.5x0.625deg"
+    },
+    "RH2M": {
+      "column": "humidity_2m_pct",
+      "unit": "%",
+      "source_grid": "MERRA-2 0.5x0.625deg"
+    },
+    "PRECTOTCORR": {
+      "column": "precip_mm_hr",
+      "unit": "mm/hour",
+      "source_grid": "MERRA-2 0.5x0.625deg"
+    },
+    "PS": {
+      "column": "pressure_kpa",
+      "unit": "kPa",
+      "source_grid": "MERRA-2 0.5x0.625deg"
+    }
+  },
+  "grid": {
+    "native_resolution_deg": {
+      "latitude": 0.5,
+      "longitude": 0.625
+    },
+    "cells_to_sites": {
+      "10.0,80.0": [
+        "Eluvaitivu"
+      ],
+      "9.5,80.0": [
+        "Analaitivu",
+        "Nainativu",
+        "Delft-Neduntivu"
+      ]
+    },
+    "distinct_cells": 2,
+    "site_count": 4,
+    "note": "Sites sharing a cell receive identical series. Inter-island weather variation is unobserved at this resolution \u2014 see the module docstring.",
+    "measured_distinct_series": {
+      "ghi_wh_m2": {
+        "count": 1,
+        "groups": [
+          [
+            "Eluvaitivu",
+            "Analaitivu",
+            "Nainativu",
+            "Delft-Neduntivu"
+          ]
+        ]
+      },
+      "ghi_clearsky_wh_m2": {
+        "count": 1,
+        "groups": [
+          [
+            "Eluvaitivu",
+            "Analaitivu",
+            "Nainativu",
+            "Delft-Neduntivu"
+          ]
+        ]
+      },
+      "wind_10m_ms": {
+        "count": 2,
+        "groups": [
+          [
+            "Analaitivu",
+            "Nainativu",
+            "Delft-Neduntivu"
+          ],
+          [
+            "Eluvaitivu"
+          ]
+        ]
+      },
+      "wind_50m_ms": {
+        "count": 2,
+        "groups": [
+          [
+            "Analaitivu",
+            "Nainativu",
+            "Delft-Neduntivu"
+          ],
+          [
+            "Eluvaitivu"
+          ]
+        ]
+      },
+      "temp_2m_c": {
+        "count": 2,
+        "groups": [
+          [
+            "Analaitivu",
+            "Nainativu",
+            "Delft-Neduntivu"
+          ],
+          [
+            "Eluvaitivu"
+          ]
+        ]
+      },
+      "humidity_2m_pct": {
+        "count": 2,
+        "groups": [
+          [
+            "Analaitivu",
+            "Nainativu",
+            "Delft-Neduntivu"
+          ],
+          [
+            "Eluvaitivu"
+          ]
+        ]
+      },
+      "precip_mm_hr": {
+        "count": 2,
+        "groups": [
+          [
+            "Analaitivu",
+            "Nainativu",
+            "Delft-Neduntivu"
+          ],
+          [
+            "Eluvaitivu"
+          ]
+        ]
+      },
+      "pressure_kpa": {
+        "count": 2,
+        "groups": [
+          [
+            "Analaitivu",
+            "Nainativu",
+            "Delft-Neduntivu"
+          ],
+          [
+            "Eluvaitivu"
+          ]
+        ]
+      }
+    }
+  },
+  "sites": {
+    "Eluvaitivu": {
+      "latitude": 9.76,
+      "longitude": 79.77,
+      "grid_cell": [
+        10.0,
+        80.0
+      ],
+      "rows": 17544,
+      "missing_values": 0,
+      "file": "Eluvaitivu_hourly.csv",
+      "api": {
+        "version": "v2.9.8",
+        "name": "POWER Hourly API"
+      },
+      "sources": [
+        "SYN1DEG",
+        "MERRA2",
+        "POWER"
+      ],
+      "time_standard": "LST",
+      "fill_value": -999.0,
+      "returned_coordinates": [
+        79.77,
+        9.76,
+        0.81
+      ]
+    },
+    "Analaitivu": {
+      "latitude": 9.72,
+      "longitude": 79.79,
+      "grid_cell": [
+        9.5,
+        80.0
+      ],
+      "rows": 17544,
+      "missing_values": 0,
+      "file": "Analaitivu_hourly.csv",
+      "api": {
+        "version": "v2.9.8",
+        "name": "POWER Hourly API"
+      },
+      "sources": [
+        "SYN1DEG",
+        "MERRA2",
+        "POWER"
+      ],
+      "time_standard": "LST",
+      "fill_value": -999.0,
+      "returned_coordinates": [
+        79.79,
+        9.72,
+        6.95
+      ]
+    },
+    "Nainativu": {
+      "latitude": 9.615,
+      "longitude": 79.775,
+      "grid_cell": [
+        9.5,
+        80.0
+      ],
+      "rows": 17544,
+      "missing_values": 0,
+      "file": "Nainativu_hourly.csv",
+      "api": {
+        "version": "v2.9.8",
+        "name": "POWER Hourly API"
+      },
+      "sources": [
+        "SYN1DEG",
+        "MERRA2",
+        "POWER"
+      ],
+      "time_standard": "LST",
+      "fill_value": -999.0,
+      "returned_coordinates": [
+        79.775,
+        9.615,
+        6.95
+      ]
+    },
+    "Delft-Neduntivu": {
+      "latitude": 9.52,
+      "longitude": 79.69,
+      "grid_cell": [
+        9.5,
+        80.0
+      ],
+      "rows": 17544,
+      "missing_values": 0,
+      "file": "Delft-Neduntivu_hourly.csv",
+      "api": {
+        "version": "v2.9.8",
+        "name": "POWER Hourly API"
+      },
+      "sources": [
+        "SYN1DEG",
+        "MERRA2",
+        "POWER"
+      ],
+      "time_standard": "LST",
+      "fill_value": -999.0,
+      "returned_coordinates": [
+        79.69,
+        9.52,
+        6.95
+      ]
+    }
+  }
+}
