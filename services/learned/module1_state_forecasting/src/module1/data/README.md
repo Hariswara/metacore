@@ -62,6 +62,7 @@ that M3 gates on.
 | `validate.py` | `ceb_reconcile` | Reconciliation gate against the printed annual summary |
 | `nasa_power.py` | `nasa_power_pull` / `nasa_power_check` | Hourly meteorology for the four islands, and its gate |
 | `load.py` | `load_downscale` / `load_check` | Monthly island energy → hourly load, and its gate |
+| `scenarios.py` | `scenario_library` / `scenario_check` | The shared ID/OOD scenario library M2 evaluates against, and its gate |
 
 `nasa_power_pull` is **frozen** in `data/dvc.yaml`: it is a network fetch of ~70,000 site-hours
 from a free public API, so it is deliberately excluded from the default `dvc repro`. Refresh it
@@ -70,6 +71,12 @@ with `task data:pull`.
 The NASA POWER stage carries a measured constraint worth reading before modelling anything
 spatial: the source does not resolve these islands. See
 [`docs/data/nasa-power-resolution.md`](../../../../../../docs/data/nasa-power-resolution.md).
+
+`scenarios.py` reads the *per-plant* ledger rather than the hourly island series, and that is the
+whole point of it. Summing the two Eluvaitivu plants into one island demand is correct for dispatch
+and power flow, but it attenuates the 2025 Q4 hybrid degradation sevenfold — the plant falls 73.4%
+while island demand falls 10.3%, because the diesel set absorbs the difference. The label cannot be
+recovered from the hourly artifact, so it is derived where the event is still visible.
 
 `load.py` is the stage where the measured/constructed boundary matters most: it turns 120 monthly
 numbers into 70,176 hourly ones. Read the circularity warning in its docstring before using the
