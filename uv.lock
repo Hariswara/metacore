@@ -1616,10 +1616,6 @@ dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pydantic" },
-]
-
-[package.optional-dependencies]
-models = [
     { name = "torch", version = "2.13.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
     { name = "torch", version = "2.13.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
 ]
@@ -1629,9 +1625,8 @@ requires-dist = [
     { name = "grpcio", specifier = ">=1.66" },
     { name = "numpy", specifier = ">=2.0" },
     { name = "pydantic", specifier = ">=2.9" },
-    { name = "torch", marker = "extra == 'models'", specifier = ">=2.4", index = "https://download.pytorch.org/whl/cpu" },
+    { name = "torch", specifier = ">=2.4", index = "https://download.pytorch.org/whl/cpu" },
 ]
-provides-extras = ["models"]
 
 [[package]]
 name = "metacore-module3"
@@ -1644,10 +1639,6 @@ dependencies = [
     { name = "numpy", version = "2.5.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "onnx" },
     { name = "pydantic" },
-]
-
-[package.optional-dependencies]
-models = [
     { name = "torch", version = "2.13.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
     { name = "torch", version = "2.13.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
 ]
@@ -1659,9 +1650,8 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.0" },
     { name = "onnx", specifier = ">=1.17" },
     { name = "pydantic", specifier = ">=2.9" },
-    { name = "torch", marker = "extra == 'models'", specifier = ">=2.4", index = "https://download.pytorch.org/whl/cpu" },
+    { name = "torch", specifier = ">=2.4", index = "https://download.pytorch.org/whl/cpu" },
 ]
-provides-extras = ["models"]
 
 [[package]]
 name = "metacore-module4-translation"

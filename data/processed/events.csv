@@ -1,0 +1,18 @@
+scenario_id,island,plant,event_type,start_month,end_month,months,out_of_distribution,baseline_kwh,worst_ratio,detection_rule,note
+eluvaitivu-hybrid-decay-2025q4,Eluvaitivu,Eluvaitivu-Hybrid,asset_degradation,2025-10,2025-12,3,true,8057.0,0.0324,median baseline; core<0.5; onset walk-back<0.9,"Visible only in the per-plant monthly ledger. island_load_hourly.csv sums both Eluvaitivu plants: across this window the plant falls 73.4% while island demand falls 10.3%, a 7.1x attenuation, because the diesel set absorbs the difference."
+analaitivu-nominal-2024q2,Analaitivu,,nominal,2024-04,2024-06,3,false,33955.7,0.8734,"every plant within (0.85, 1.15) of its own median",In-distribution control window.
+analaitivu-nominal-2024q3,Analaitivu,,nominal,2024-07,2024-09,3,false,36343.7,1.0043,"every plant within (0.85, 1.15) of its own median",In-distribution control window.
+analaitivu-nominal-2024q4,Analaitivu,,nominal,2024-10,2024-12,3,false,33030.3,0.8579,"every plant within (0.85, 1.15) of its own median",In-distribution control window.
+analaitivu-nominal-2025q2,Analaitivu,,nominal,2025-04,2025-06,3,false,37162.3,0.9092,"every plant within (0.85, 1.15) of its own median",In-distribution control window.
+analaitivu-nominal-2025q3,Analaitivu,,nominal,2025-07,2025-09,3,false,38915.0,1.0927,"every plant within (0.85, 1.15) of its own median",In-distribution control window.
+delft-neduntivu-nominal-2024q1,Delft-Neduntivu,,nominal,2024-01,2024-03,3,false,83020.7,0.8833,"every plant within (0.85, 1.15) of its own median",In-distribution control window.
+delft-neduntivu-nominal-2024q2,Delft-Neduntivu,,nominal,2024-04,2024-06,3,false,90796.0,0.973,"every plant within (0.85, 1.15) of its own median",In-distribution control window.
+delft-neduntivu-nominal-2024q3,Delft-Neduntivu,,nominal,2024-07,2024-09,3,false,94559.7,1.0174,"every plant within (0.85, 1.15) of its own median",In-distribution control window.
+delft-neduntivu-nominal-2024q4,Delft-Neduntivu,,nominal,2024-10,2024-12,3,false,86300.7,0.9023,"every plant within (0.85, 1.15) of its own median",In-distribution control window.
+delft-neduntivu-nominal-2025q1,Delft-Neduntivu,,nominal,2025-03,2025-05,3,false,97693.3,0.9819,"every plant within (0.85, 1.15) of its own median",In-distribution control window.
+delft-neduntivu-nominal-2025q2,Delft-Neduntivu,,nominal,2025-06,2025-08,3,false,93286.7,0.9956,"every plant within (0.85, 1.15) of its own median",In-distribution control window.
+eluvaitivu-nominal-2024q1,Eluvaitivu,,nominal,2024-03,2024-05,3,false,16808.3,0.9403,"every plant within (0.85, 1.15) of its own median",In-distribution control window.
+nainativu-nominal-2024q1,Nainativu,,nominal,2024-01,2024-03,3,false,94603.3,0.8859,"every plant within (0.85, 1.15) of its own median",In-distribution control window.
+nainativu-nominal-2024q2,Nainativu,,nominal,2024-04,2024-06,3,false,106653.3,0.9993,"every plant within (0.85, 1.15) of its own median",In-distribution control window.
+nainativu-nominal-2024q3,Nainativu,,nominal,2024-07,2024-09,3,false,103833.3,1.0007,"every plant within (0.85, 1.15) of its own median",In-distribution control window.
+nainativu-nominal-2025q1,Nainativu,,nominal,2025-03,2025-05,3,false,101803.3,0.9703,"every plant within (0.85, 1.15) of its own median",In-distribution control window.

@@ -61,32 +61,6 @@ tasks:
       - uv run python -m module1.data.scenarios build .synthetic/ceb_generation_tidy.csv .synthetic
       - uv run python -m module1.data.scenarios validate .synthetic .synthetic/ceb_generation_tidy.csv
 
-  # The DVC remote is a plain directory at .dvc/onedrive-mount, which rclone mounts onto the
-  # team's OneDrive folder. The path is repo-relative on purpose: it resolves identically on
-  # every machine, so nobody has to override it. One-time setup in docs/data/dvc-remote.md.
-  artifacts:mounted:
-    internal: true
-    cmds:
-      - |
-        if [ ! -d .dvc/onedrive-mount ] || [ -z "$(ls -A .dvc/onedrive-mount 2>/dev/null)" ]; then
-          echo "The OneDrive remote is not mounted at .dvc/onedrive-mount." >&2
-          echo "One-time setup, then re-run: docs/data/dvc-remote.md" >&2
-          echo "  rclone mount onedrive:MetaCore/dvc-store .dvc/onedrive-mount --daemon" >&2
-          exit 1
-        fi
-
-  artifacts:pull:
-    desc: Fetch the calibration artifacts from the team OneDrive remote
-    cmds:
-      - task: artifacts:mounted
-      - uv run --isolated --with dvc dvc pull
-
-  artifacts:push:
-    desc: Publish locally rebuilt calibration artifacts to the team OneDrive remote
-    cmds:
-      - task: artifacts:mounted
-      - uv run --isolated --with dvc dvc push
-
   dev:
     desc: Bring up the default compose profile
     cmds:

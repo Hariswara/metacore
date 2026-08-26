@@ -1,0 +1,145 @@
+{
+  "artifact": "island_load_hourly",
+  "version": "1.0.0",
+  "produced_by": "module1.data.load",
+  "stage": "load_downscale",
+  "quality": "QUALITY_INTERPOLATED",
+  "measured_inputs": {
+    "monthly_energy": "data/processed/ceb_generation_tidy.csv (CEB ledger, reconciled)",
+    "temperature": "data/raw/nasa_power/*_hourly.csv (MERRA-2)",
+    "max_demand": {
+      "Nainativu": 460.0
+    },
+    "installed_kva": {
+      "2024/Analaitivu": 650.0,
+      "2025/Analaitivu": 450.0,
+      "2024/Eluvaitivu": 130.0,
+      "2025/Eluvaitivu": 130.0,
+      "2024/Delft-Neduntivu": 1210.0,
+      "2025/Delft-Neduntivu": 830.0,
+      "2024/Nainativu": 1260.0,
+      "2025/Nainativu": 880.0
+    }
+  },
+  "assumptions": {
+    "diurnal_profile": [
+      0.55,
+      0.5,
+      0.48,
+      0.47,
+      0.48,
+      0.55,
+      0.7,
+      0.8,
+      0.82,
+      0.8,
+      0.8,
+      0.82,
+      0.85,
+      0.85,
+      0.83,
+      0.8,
+      0.8,
+      0.88,
+      1.35,
+      1.7,
+      1.75,
+      1.55,
+      1.1,
+      0.75
+    ],
+    "dow_factor": [
+      0.99,
+      0.99,
+      0.99,
+      0.99,
+      1.0,
+      1.01,
+      1.03
+    ],
+    "temp_beta_per_c": 0.015,
+    "power_factor": 0.85,
+    "note": "Intra-day shape is constructed, not measured. Every row is QUALITY_INTERPOLATED. Not valid as training data for a load forecaster -- see the circularity warning in module1/data/load.py."
+  },
+  "calibration": {
+    "anchor_island": "Nainativu",
+    "anchor_year": "2025",
+    "reported_max_demand_kva": 460.0,
+    "power_factor_assumed": 0.85,
+    "target_peak_kw": 391.0,
+    "achieved_peak_kw": 391.0,
+    "solved_peakiness_exponent": 0.98466
+  },
+  "willans_fuel_model": {
+    "Analaithivu": {
+      "no_load_l_per_h": 15.3775,
+      "marginal_l_per_kwh": 0.070514,
+      "r2": 0.5401,
+      "residual_pct_of_mean": 3.22,
+      "months": 24,
+      "continuous_running_consistent": true
+    },
+    "Eluvaitivu-Diesel": {
+      "no_load_l_per_h": -0.4812,
+      "marginal_l_per_kwh": 0.44647,
+      "r2": 0.9734,
+      "residual_pct_of_mean": 5.1,
+      "months": 24,
+      "continuous_running_consistent": false
+    },
+    "Eluvaitivu-Hybrid": {
+      "no_load_l_per_h": 0.2614,
+      "marginal_l_per_kwh": 0.077518,
+      "r2": 0.3787,
+      "residual_pct_of_mean": 30.72,
+      "months": 24,
+      "continuous_running_consistent": true
+    },
+    "Delft-Neduntivu": {
+      "no_load_l_per_h": 8.2681,
+      "marginal_l_per_kwh": 0.25684,
+      "r2": 0.6391,
+      "residual_pct_of_mean": 6.42,
+      "months": 24,
+      "continuous_running_consistent": true
+    },
+    "Nainativu": {
+      "no_load_l_per_h": 7.6382,
+      "marginal_l_per_kwh": 0.270198,
+      "r2": 0.9745,
+      "residual_pct_of_mean": 1.87,
+      "months": 24,
+      "continuous_running_consistent": true
+    }
+  },
+  "islands": {
+    "Analaitivu": {
+      "hours": 17544,
+      "mean_kw": 47.0,
+      "peak_kw": 113.46,
+      "min_kw": 18.92,
+      "load_factor": 0.4142
+    },
+    "Delft-Neduntivu": {
+      "hours": 17544,
+      "mean_kw": 124.88,
+      "peak_kw": 312.28,
+      "min_kw": 51.21,
+      "load_factor": 0.3999
+    },
+    "Eluvaitivu": {
+      "hours": 17544,
+      "mean_kw": 21.76,
+      "peak_kw": 50.59,
+      "min_kw": 9.3,
+      "load_factor": 0.4301
+    },
+    "Nainativu": {
+      "hours": 17544,
+      "mean_kw": 135.61,
+      "peak_kw": 391.0,
+      "min_kw": 54.43,
+      "load_factor": 0.3468
+    }
+  }
+}

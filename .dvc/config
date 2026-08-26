@@ -1,4 +1,0 @@
-[core]
-    remote = onedrive
-['remote "onedrive"']
-    url = onedrive-mount
