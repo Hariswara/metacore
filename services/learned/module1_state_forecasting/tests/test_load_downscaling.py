@@ -136,3 +136,34 @@ def test_willans_flags_the_intermittently_dispatched_plant() -> None:
     assert fits["Eluvaitivu-Diesel"]["continuous_running_consistent"] is False
     assert fits["Nainativu"]["continuous_running_consistent"] is True
     assert fits["Nainativu"]["r2"] > 0.9
+
+
+@needs_artifacts
+def test_manifest_identifies_itself() -> None:
+    """M2 reads this sidecar to interpret the CSV; unversioned, it has to guess."""
+    manifest = json.loads((PROCESSED / "load_parameters.json").read_text())
+    assert manifest["artifact"] == load_stage.ARTIFACT_NAME
+    assert manifest["version"] == load_stage.ARTIFACT_VERSION
+    assert manifest["produced_by"] == "module1.data.load"
+
+
+@needs_artifacts
+def test_version_gate_rejects_a_stale_manifest(tmp_path: Path) -> None:
+    """A manifest from an older shape must fail the gate rather than be read as current."""
+    stale = json.loads((PROCESSED / "load_parameters.json").read_text())
+    stale["version"] = "0.9.0"
+
+    (tmp_path / "island_load_hourly.csv").write_bytes(LOAD_CSV.read_bytes())
+    (tmp_path / "load_parameters.json").write_text(json.dumps(stale))
+
+    failures = load_stage.check(tmp_path / "island_load_hourly.csv", TIDY_CSV)
+    assert any("version" in f and "0.9.0" in f for f in failures), failures
+
+
+@needs_artifacts
+def test_missing_manifest_fails_the_gate(tmp_path: Path) -> None:
+    """The sidecar carries every assumption; a load table without one is not interpretable."""
+    (tmp_path / "island_load_hourly.csv").write_bytes(LOAD_CSV.read_bytes())
+
+    failures = load_stage.check(tmp_path / "island_load_hourly.csv", TIDY_CSV)
+    assert any("load_parameters.json" in f and "absent" in f for f in failures), failures
