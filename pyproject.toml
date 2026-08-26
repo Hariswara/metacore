@@ -7,6 +7,15 @@ description = "MetaCore monorepo — uv workspace root (J26-DS-317)"
 requires-python = ">=3.11"
 dependencies = []
 
+# Dev tooling is declared, not assumed. The CI lanes invoke ruff and pytest, and until now
+# nothing installed them: both are configured further down this file but were never declared as
+# dependencies, so `uv sync` produced an environment the workflow then failed to run in.
+[dependency-groups]
+dev = [
+  "pytest>=8.3",
+  "ruff>=0.14",
+]
+
 [tool.uv.workspace]
 members = [
   "services/gateway",
