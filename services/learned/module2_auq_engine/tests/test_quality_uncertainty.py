@@ -27,7 +27,9 @@ def test_uncertainty_rises_as_quality_falls(evidence):
     us = [uncertainty_quality(e, of).mean().item() for of in QUALITY_SWEEP]
 
     assert all(us[i] < us[i+1] for i in range(len(us)-1)), us
-    assert us[0] < 0.20 and us[-1] > 0.35, us
+    # Qualitative: low when fully observed, materially higher when barely observed. The
+    # exact values move with the width of the feature vector.
+    assert us[0] < 0.20 and us[-1] > 3*us[0], us
 
 
 def test_value_ood_stays_high_regardless_of_quality(evidence):

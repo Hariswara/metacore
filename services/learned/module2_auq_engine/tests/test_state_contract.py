@@ -6,11 +6,14 @@ run in milliseconds. The end-to-end test trains the evidential head through
 uncertainty rises on out-of-distribution states.
 """
 
+import dataclasses
+
 import numpy as np
 import pytest
 import torch
 from edl import EDLNet, edl_mse_loss, kl_to_uniform, uncertainty
 from evaluate import auroc
+from metacore_contracts.state_schema import FEATURE_NAMES
 from state_contract import (
     QUALITY_OBSERVED,
     QUALITY_VALUES,
@@ -67,15 +70,53 @@ def test_quality_mask_covers_every_feature_and_is_self_consistent():
 
 
 def test_nothing_synthetic_is_labelled_observed():
-    """ADR 0004 constraint 3. The electrical channels have no measured record."""
+    """ADR 0004 constraint 3. The electrical group has no measured record at all -- no
+    SCADA, no historian -- so the pin marks it QUALITY_MISSING, and the resource and
+    demand groups reach us through downscaling as QUALITY_INTERPOLATED."""
     rng = np.random.default_rng(0)
     states, _ = sample_states_id(1, rng)
     s = states[0]
     quality_of = dict(zip(s.feature_names, s.quality.per_feature, strict=True))
 
-    for constructed in ("voltage_pu", "load_factor", "freq_dev_hz", "gen_margin"):
-        assert quality_of[constructed] != QUALITY_OBSERVED
-    assert s.quality.observed_fraction < 1.0
+    for electrical in ("p_kw_norm", "q_kvar_norm", "voltage_pu", "soc_fraction", "asset_online"):
+        assert quality_of[electrical] != QUALITY_OBSERVED
+    for downscaled in ("load_kw_norm", "ghi_wh_m2_norm", "temp_2m_c_norm"):
+        assert quality_of[downscaled] != QUALITY_OBSERVED
+    assert s.quality.observed_fraction == pytest.approx(12/28)
+
+
+def test_mock_follows_the_pinned_contract():
+    """The mock must not carry its own copy of the schema. If M1 bumps the pin, this is
+    what fails rather than a downstream shape error three commits later."""
+    rng = np.random.default_rng(0)
+    s = sample_states_id(1, rng)[0][0]
+
+    assert tuple(s.feature_names) == FEATURE_NAMES
+    assert s.embedding_dim == EMBEDDING_DIM == 64
+    assert len(FEATURE_NAMES) == 28
+    assert (s.envelope.schema_version.major, s.envelope.schema_version.minor) == (1, 0)
+
+
+def test_dataclass_mirror_matches_the_generated_proto():
+    """The reason for mirroring rather than importing: catch drift. Now that M1 fixed the
+    stub imports we can check the mirror against the real message directly."""
+    try:
+        from metacore_contracts import common_pb2 as common
+        from metacore_contracts import module1_pb2 as pb
+    except Exception as exc:                       # noqa: BLE001 - environment, not code
+        # The generated stubs pin a protobuf gencode version; an older runtime raises
+        # VersionError rather than ImportError, so importorskip alone does not cover it.
+        pytest.skip(f"generated stubs unusable in this environment: {type(exc).__name__}")
+
+    proto_fields = [f.name for f in pb.StateRepresentation.DESCRIPTOR.fields]
+    mirror_fields = [f.name for f in dataclasses.fields(StateRepresentation)]
+    assert mirror_fields == proto_fields
+
+    mask_fields = [f.name for f in common.QualityMask.DESCRIPTOR.fields]
+    assert [f.name for f in dataclasses.fields(QualityMask)] == mask_fields
+
+    proto_quality = {v.name for v in common.Quality.DESCRIPTOR.values}
+    assert QUALITY_VALUES == proto_quality
 
 
 def test_ood_label_travels_in_scenario_ref_not_degraded():

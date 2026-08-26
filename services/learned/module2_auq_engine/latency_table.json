@@ -11,17 +11,17 @@
   "rows": [
     {
       "backend": "torch-eager",
-      "mean_ms": 0.04624733356952978,
-      "p50_ms": 0.0425000034738332,
-      "p99_ms": 0.08570399775635451,
-      "amortised_batch1000_ms_per_sample": 0.00014040000678505749,
-      "amortised_optimism_ratio": 302.7065628201693
+      "mean_ms": 0.09725766770619278,
+      "p50_ms": 0.07505000394303352,
+      "p99_ms": 0.30975699424743564,
+      "amortised_batch1000_ms_per_sample": 0.00027150000096298754,
+      "amortised_optimism_ratio": 276.4272695279466
     },
     {
       "backend": "onnxruntime",
-      "mean_ms": 0.022726665920345113,
-      "p50_ms": 0.01960000372491777,
-      "p99_ms": 0.046227002458181204,
+      "mean_ms": 0.03831499983789399,
+      "p50_ms": 0.035500008380040526,
+      "p99_ms": 0.08702402206836266,
       "amortised_batch1000_ms_per_sample": null,
       "amortised_optimism_ratio": null,
       "note": "artifact is fixed batch-1; batched throughput would need a separate export with dynamic_shapes"

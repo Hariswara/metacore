@@ -1,59 +1,159 @@
 """Stand-in for Module 1's shared ID/OOD scenario library, so Module 2 can be
-built and evaluated BEFORE M1's real state representation exists (see plan NFR4).
-Replace sample_* with the real M1 adapter once the M1->M2 contract is live.
+built and evaluated BEFORE M1's real producer exists (see plan NFR4).
 
-sample_id / sample_ood return bare arrays (what run_demo.py uses). The
-sample_states_* pair below wraps the same draws in the real M1 -> M2 contract
-message, so everything downstream is written against StateRepresentation now."""
+Pinned to the real contract: the feature names, their order, the embedding width and
+the per-feature quality all come from `metacore_contracts.state_schema`, not from
+constants here. When M1 bumps the pin, this mock moves with it or the tests fail --
+which is the point. Replace sample_states_* with M1's producer and nothing downstream
+of `stack_features` changes.
+
+sample_id / sample_ood return bare arrays. The sample_states_* trio wraps the same
+draws in the real M1 -> M2 contract message.
+"""
 import time
 
 import numpy as np
+from metacore_contracts.state_schema import (
+    EMBEDDING_DIM,
+    FEATURE_NAMES,
+    SCHEMA_VERSION,
+    calibration_quality,
+    feature_index,
+)
 from state_contract import (
-    QUALITY_INTERPOLATED,
     QUALITY_MISSING,
     QUALITY_OBSERVED,
     Envelope,
     QualityMask,
     ScenarioRef,
-    SchemaVersion,
     StateRepresentation,
 )
 
-FEATURES = ["voltage_pu","load_factor","freq_dev_hz","wind_ms",
-            "rainfall_mm","solar_wm2","gen_margin","temp_c"]
+FEATURES = list(FEATURE_NAMES)
 D = len(FEATURES)
+
+# Column indices, resolved through the contract so a reorder upstream cannot silently
+# shuffle what this file thinks it is writing.
+IDX = {name: feature_index(name) for name in FEATURES}
+
+ASSET_TYPES = ("is_bus", "is_pv", "is_wind", "is_bess", "is_diesel", "is_load")
+ASSET_MIX = (0.24, 0.14, 0.10, 0.10, 0.14, 0.28)
+
+# Quality is not hand-written: it is read off the pin. 12 QUALITY_OBSERVED (the temporal
+# and static-topology groups), 11 QUALITY_INTERPOLATED (resource, meteorology, demand)
+# and 5 QUALITY_MISSING (the electrical group -- no SCADA exists, ADR 0004). Nominal
+# observed_fraction is therefore 12/28 = 0.4286, and that is what the sensing floor in
+# config.yaml is calibrated against.
+FEATURE_QUALITY = {name: calibration_quality(name) for name in FEATURES}
+OBSERVED_FEATURES = tuple(f for f in FEATURES if FEATURE_QUALITY[f] == QUALITY_OBSERVED)
+NOMINAL_OBSERVED_FRACTION = len(OBSERVED_FEATURES)/D
+
+# The temporal block. A comms blackout that takes the clock source out drops all four at
+# once, which is the modality-loss case the sensing axis exists to catch.
+TEMPORAL_FEATURES = ("hour_sin", "hour_cos", "doy_sin", "doy_cos")
+
+
+def _cyclic(value, period):
+    angle = 2.0*np.pi*value/period
+    return np.sin(angle), np.cos(angle)
+
+
+def _common(x, n, rng):
+    """Temporal and static-topology columns. Identical in distribution for ID and OOD --
+    a cyclone does not change what time it is or what an asset is plugged into."""
+    hour = rng.integers(0, 24, n)
+    doy = rng.integers(1, 366, n)
+    x[:, IDX["hour_sin"]], x[:, IDX["hour_cos"]] = _cyclic(hour, 24)
+    x[:, IDX["doy_sin"]], x[:, IDX["doy_cos"]] = _cyclic(doy, 365)
+
+    kind = rng.choice(len(ASSET_TYPES), n, p=ASSET_MIX)
+    for i, name in enumerate(ASSET_TYPES):
+        x[:, IDX[name]] = (kind == i).astype(np.float32)
+    x[:, IDX["nominal_kv_norm"]] = rng.choice([0.4/11.0, 1.0], n, p=[0.75, 0.25])
+    x[:, IDX["critical_load"]] = (rng.random(n) < 0.12).astype(np.float32)
+    return hour, kind
+
 
 def sample_id(n, rng):
     """Normal-operation island states + a 3-class safety label (safe/stressed/critical)."""
     x = np.zeros((n, D), np.float32)
-    x[:,0] = np.clip(rng.normal(1.0,0.02,n),0.94,1.06)   # voltage (pu)
-    x[:,1] = rng.uniform(0.3,0.9,n)                       # load factor
-    x[:,2] = rng.normal(0,0.05,n)                         # frequency deviation (Hz)
-    x[:,3] = rng.uniform(0,12,n)                          # wind (m/s)
-    x[:,4] = rng.exponential(2,n)                         # rainfall (mm)
-    x[:,5] = rng.uniform(0,900,n)                         # solar (W/m2)
-    x[:,6] = rng.uniform(0.1,0.6,n)                       # generation margin
-    x[:,7] = rng.normal(28,3,n)                           # temperature (C)
-    # physically-motivated risk -> safety class (wind & rain DO matter, so the
-    # model learns to use them; otherwise it would ignore the cyclone features)
-    risk = (0.32*x[:,1] + 0.26*np.abs(x[:,0]-1.0)*10 + 0.12*np.abs(x[:,2])*10
-            + 0.18*(x[:,3]/12) + 0.12*np.clip(x[:,4]/10,0,1))
-    q = np.quantile(risk,[0.5,0.83])
-    y = np.digitize(risk,q).astype(np.int64)              # 0 safe, 1 stressed, 2 critical
-    return x, y
+    hour, kind = _common(x, n, rng)
+
+    daylight = np.clip(np.sin(np.pi*(hour - 6)/12), 0, None)
+    clearsky = np.clip(rng.beta(5, 2, n), 0, 1)
+    x[:, IDX["ghi_wh_m2_norm"]] = daylight*clearsky
+    x[:, IDX["clearsky_index"]] = clearsky
+    x[:, IDX["wind_10m_ms_norm"]] = np.clip(rng.beta(2, 5, n), 0, 1)
+    x[:, IDX["wind_50m_ms_norm"]] = np.clip(x[:, IDX["wind_10m_ms_norm"]]*1.25, 0, 1)
+    x[:, IDX["pv_available_kw_norm"]] = x[:, IDX["ghi_wh_m2_norm"]]*(kind == 1)
+
+    x[:, IDX["temp_2m_c_norm"]] = rng.normal(0, 1, n)
+    x[:, IDX["humidity_2m_pct_norm"]] = np.clip(rng.normal(0.8, 0.07, n), 0, 1)
+    x[:, IDX["precip_mm_hr_norm"]] = np.clip(rng.exponential(0.04, n), 0, 1)
+    x[:, IDX["pressure_kpa_norm"]] = rng.normal(0, 1, n)
+
+    # Demand: the evening peak the load-downscaling stage constructs, plus a warm-day term.
+    diurnal = 0.45 + 0.35*np.clip(np.sin(np.pi*(hour - 5)/19), 0, None) \
+        + 0.35*np.exp(-0.5*((hour - 20)/2.2)**2)
+    load = np.clip(diurnal*(1 + 0.05*x[:, IDX["temp_2m_c_norm"]]), 0.1, 1.0)
+    x[:, IDX["load_kw_norm"]] = load
+    x[:, IDX["load_ramp_kw_per_h_norm"]] = rng.normal(0, 0.06, n)
+
+    # Electrical: QUALITY_MISSING in the calibration artifacts, filled by the simulator.
+    x[:, IDX["p_kw_norm"]] = np.clip(load*rng.normal(1.0, 0.05, n), 0, 1.2)
+    x[:, IDX["q_kvar_norm"]] = x[:, IDX["p_kw_norm"]]*rng.normal(0.35, 0.06, n)
+    x[:, IDX["voltage_pu"]] = np.clip(rng.normal(1.0, 0.02, n), 0.94, 1.06)
+    x[:, IDX["soc_fraction"]] = np.clip(rng.beta(5, 2, n), 0, 1)*(kind == 3)
+    x[:, IDX["asset_online"]] = (rng.random(n) > 0.02).astype(np.float32)
+
+    return x, _risk_class(x)
+
 
 def sample_ood(n, rng):
     """Cyclone / extreme states, far outside the training distribution (unlabelled)."""
     x = np.zeros((n, D), np.float32)
-    x[:,0] = np.clip(rng.normal(1.0,0.09,n),0.80,1.20)
-    x[:,1] = rng.uniform(0.85,1.15,n)
-    x[:,2] = rng.normal(0,0.4,n)
-    x[:,3] = rng.uniform(25,45,n)                         # cyclonic wind
-    x[:,4] = rng.uniform(40,120,n)                        # extreme rainfall
-    x[:,5] = rng.uniform(0,300,n)
-    x[:,6] = rng.uniform(-0.1,0.1,n)                      # generation deficit
-    x[:,7] = rng.normal(30,4,n)
+    hour, kind = _common(x, n, rng)
+
+    # Storm: overcast, cyclonic wind, torrential rain, collapsing surface pressure.
+    daylight = np.clip(np.sin(np.pi*(hour - 6)/12), 0, None)
+    clearsky = np.clip(rng.beta(1.5, 6, n)*0.4, 0, 1)
+    x[:, IDX["ghi_wh_m2_norm"]] = daylight*clearsky
+    x[:, IDX["clearsky_index"]] = clearsky
+    x[:, IDX["wind_10m_ms_norm"]] = np.clip(rng.uniform(1.8, 3.4, n), 0, None)
+    x[:, IDX["wind_50m_ms_norm"]] = x[:, IDX["wind_10m_ms_norm"]]*1.3
+    x[:, IDX["pv_available_kw_norm"]] = x[:, IDX["ghi_wh_m2_norm"]]*(kind == 1)
+
+    x[:, IDX["temp_2m_c_norm"]] = rng.normal(0.8, 1.6, n)
+    x[:, IDX["humidity_2m_pct_norm"]] = np.clip(rng.normal(0.97, 0.02, n), 0, 1)
+    x[:, IDX["precip_mm_hr_norm"]] = rng.uniform(2.5, 6.0, n)
+    x[:, IDX["pressure_kpa_norm"]] = rng.normal(-4.5, 0.8, n)
+
+    load = np.clip(rng.uniform(0.9, 1.35, n), 0, None)
+    x[:, IDX["load_kw_norm"]] = load
+    x[:, IDX["load_ramp_kw_per_h_norm"]] = rng.normal(0, 0.45, n)
+
+    x[:, IDX["p_kw_norm"]] = np.clip(load*rng.normal(1.05, 0.2, n), 0, None)
+    x[:, IDX["q_kvar_norm"]] = x[:, IDX["p_kw_norm"]]*rng.normal(0.6, 0.2, n)
+    x[:, IDX["voltage_pu"]] = np.clip(rng.normal(1.0, 0.09, n), 0.78, 1.22)
+    x[:, IDX["soc_fraction"]] = np.clip(rng.beta(1.2, 6, n), 0, 1)*(kind == 3)
+    x[:, IDX["asset_online"]] = (rng.random(n) > 0.35).astype(np.float32)
+
     return x
+
+
+def _risk_class(x):
+    """3-class safety label, driven by the electrical and demand groups -- with wind and
+    rain given real weight so the net has to attend to the cyclone dimensions rather than
+    learning to ignore them."""
+    risk = (0.30*x[:, IDX["load_kw_norm"]]
+            + 0.24*np.abs(x[:, IDX["voltage_pu"]] - 1.0)*10
+            + 0.14*x[:, IDX["q_kvar_norm"]]
+            + 0.10*(1.0 - x[:, IDX["asset_online"]])
+            + 0.14*x[:, IDX["wind_10m_ms_norm"]]
+            + 0.08*np.clip(x[:, IDX["precip_mm_hr_norm"]]/0.2, 0, 1))
+    edges = np.quantile(risk, [0.5, 0.83])
+    return np.digitize(risk, edges).astype(np.int64)
+
 
 class Normalizer:
     def fit(self, x):
@@ -67,17 +167,9 @@ class Normalizer:
 
 # --- the same draws, wrapped in the M1 -> M2 contract -----------------------
 
-# Envelope.schema_version is SchemaVersion{major, minor}, not a string. M1 has
-# not pinned a value yet (the .proto defines the message but nothing stamps it),
-# so 0.1 is ours until they do -- see the M1 review.
-SCHEMA_VERSION = SchemaVersion(major=0, minor=1)
 PRODUCER = "module1"
 
-# TODO: take M1's real embedding_dim. It is not pinned anywhere yet, and the
-# mock embedding below is noise -- train on node_features, not node_embedding.
-EMBEDDING_DIM = 16
-
-SCENARIO_LIBRARY_VERSION = "mock/0.2"
+SCENARIO_LIBRARY_VERSION = "mock/0.3"
 SCENARIO_ID_ID = "mock-island-normal"
 SCENARIO_ID_OOD = "mock-island-cyclone"
 SCENARIO_ID_BLACKOUT = "mock-island-blackout"
@@ -87,42 +179,25 @@ SCENARIO_ID_BLACKOUT = "mock-island-blackout"
 # part of an episode.
 BLACKOUT_RATE = 0.15
 
-# A blackout drops one to three of the four measured channels, leaving
-# observed_fraction at 3/8, 2/8 or 1/8 -- under the 0.4 floor, above nothing.
-BLACKOUT_DROP_RANGE = (1, 3)
-
-# Per-feature Quality. ADR 0004 constraint 3: anything not measured must not be
-# QUALITY_OBSERVED. The weather channels come from NASA POWER reanalysis and are
-# measured; the electrical channels do not exist in the measured record at all
-# (no SCADA, no historian) and reach us through M1's downscaling stage, which
-# labels every row QUALITY_INTERPOLATED. Mocking a fully-observed state would
-# let us build against one that can never occur.
-FEATURE_QUALITY = {
-    "voltage_pu":   QUALITY_INTERPOLATED,
-    "load_factor":  QUALITY_INTERPOLATED,
-    "freq_dev_hz":  QUALITY_INTERPOLATED,
-    "wind_ms":      QUALITY_OBSERVED,
-    "rainfall_mm":  QUALITY_OBSERVED,
-    "solar_wm2":    QUALITY_OBSERVED,
-    "gen_margin":   QUALITY_INTERPOLATED,
-    "temp_c":       QUALITY_OBSERVED,
-}
-
 
 def _blackout_mask(rng):
-    """Per-feature Quality with one to three measured channels lost.
+    """Per-feature Quality with a modality lost.
 
-    Note what is NOT done here: the feature *values* are left alone. A blackout must
-    move the sensing axis and nothing else, or blackout states drift value-OOD too and
-    the two axes stop being separable -- which is the whole point of testing them apart.
-    The mask carries the provenance; the array carries whatever M1 imputed.
+    The temporal block goes first: it is four of the twelve QUALITY_OBSERVED features and
+    losing it is the clean modality-loss case (12/28 -> 8/28 = 0.286, under the floor).
+    Some blackouts also take topology channels, which is the shallower case.
+
+    Note what is NOT done here: the feature *values* are left alone. A blackout must move
+    the sensing axis and nothing else, or blackout states drift value-OOD too and the two
+    axes stop being separable -- which is the whole point of testing them apart.
     """
-    observed = [f for f in FEATURES if FEATURE_QUALITY[f] == QUALITY_OBSERVED]
-    low, high = BLACKOUT_DROP_RANGE
-    n_dropped = int(rng.integers(low, high + 1))
-    dropped = set(rng.choice(observed, size=n_dropped, replace=False).tolist())
+    lost = set(TEMPORAL_FEATURES)
+    extra = tuple(f for f in OBSERVED_FEATURES if f not in lost)
+    n_extra = int(rng.integers(0, 3))
+    if n_extra:
+        lost.update(rng.choice(extra, size=n_extra, replace=False).tolist())
     return QualityMask.from_per_feature(
-        [QUALITY_MISSING if f in dropped else FEATURE_QUALITY[f] for f in FEATURES]
+        [QUALITY_MISSING if f in lost else FEATURE_QUALITY[f] for f in FEATURES]
     )
 
 
@@ -167,7 +242,7 @@ def _blackout_flags(n, rng, blackout_rate):
 def sample_states_id(n, rng, blackout_rate=BLACKOUT_RATE):
     """n in-distribution states + their 3-class safety labels.
 
-    Mixed quality by default: most arrive at M1's nominal observed_fraction of 0.5,
+    Mixed quality by default: most arrive at M1's nominal observed_fraction of 0.4286,
     a minority with a modality missing. Pass blackout_rate=0.0 for a clean
     nominal-quality population.
     """

@@ -15,10 +15,11 @@ import numpy as np
 import pytest
 import torch
 from edl import EDLNet
+from metacore_contracts.state_schema import FEATURE_COUNT
 
 ort = pytest.importorskip("onnxruntime", reason="onnx extra not installed")
 
-D_IN, K = 8, 3
+D_IN, K = FEATURE_COUNT, 3   # 28, from the pinned contract
 ATOL = 1e-5
 
 
