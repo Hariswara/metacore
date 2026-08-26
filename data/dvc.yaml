@@ -109,3 +109,42 @@ stages:
       - data/processed/island_load_hourly.csv
       - data/processed/ceb_generation_tidy.csv
       - services/learned/module1_state_forecasting/src/module1/data/load.py
+
+  scenario_library:
+    wdir: ..
+    desc: >
+      The shared ID/OOD scenario library (common.proto puts it in M1's hands). Derives the
+      labelled episodes M2's out-of-distribution evaluation selects on, from the monthly
+      per-plant ledger. Necessary because island_load_hourly.csv sums both Eluvaitivu plants
+      into one island demand -- correct for dispatch and power flow, but it removes the 2025 Q4
+      hybrid degradation, which is a per-plant property. The window is derived by a stated rule
+      applied uniformly to all five plants, not hand-placed.
+    cmd: >
+      PYTHONPATH=services/learned/module1_state_forecasting/src
+      python -m module1.data.scenarios build
+      data/processed/ceb_generation_tidy.csv
+      data/processed
+    deps:
+      - data/processed/ceb_generation_tidy.csv
+      - services/learned/module1_state_forecasting/src/module1/data/scenarios.py
+    outs:
+      - data/processed/events.csv
+      - data/processed/scenario_library.json
+
+  scenario_check:
+    wdir: ..
+    desc: >
+      Gate: the committed library still reproduces from the ledger, scenario ids are unique, both
+      distribution classes are populated, and the Eluvaitivu-Hybrid degradation is present and
+      labelled out-of-distribution. The reproduction check is the load-bearing one -- it is what
+      stops the labels drifting into hand-maintained constants once the numbers look settled.
+    cmd: >
+      PYTHONPATH=services/learned/module1_state_forecasting/src
+      python -m module1.data.scenarios validate
+      data/processed
+      data/processed/ceb_generation_tidy.csv
+    deps:
+      - data/processed/events.csv
+      - data/processed/scenario_library.json
+      - data/processed/ceb_generation_tidy.csv
+      - services/learned/module1_state_forecasting/src/module1/data/scenarios.py

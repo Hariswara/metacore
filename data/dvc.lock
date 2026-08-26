@@ -40,18 +40,18 @@ stages:
     outs:
     - path: data/raw/nasa_power
       hash: md5
-      md5: 4f805a4860450bbeee02d1bb2fca3b2b.dir
+      md5: 5542a18976f3960f5e109e47c54832cf.dir
       size: 5212619
-      nfiles: 6
+      nfiles: 5
   nasa_power_check:
     cmd: "PYTHONPATH=services/learned/module1_state_forecasting/src python -m module1.data.nasa_power
       validate data/raw/nasa_power\n"
     deps:
     - path: data/raw/nasa_power
       hash: md5
-      md5: 4f805a4860450bbeee02d1bb2fca3b2b.dir
+      md5: 5542a18976f3960f5e109e47c54832cf.dir
       size: 5212619
-      nfiles: 6
+      nfiles: 5
     - path: 
         services/learned/module1_state_forecasting/src/module1/data/nasa_power.py
       hash: md5
@@ -67,13 +67,13 @@ stages:
       size: 13292
     - path: data/raw/nasa_power
       hash: md5
-      md5: 4f805a4860450bbeee02d1bb2fca3b2b.dir
+      md5: 5542a18976f3960f5e109e47c54832cf.dir
       size: 5212619
-      nfiles: 6
+      nfiles: 5
     - path: services/learned/module1_state_forecasting/src/module1/data/load.py
       hash: md5
-      md5: 0c504018e21cf612a5433027544e4047
-      size: 22852
+      md5: 9e0dd18dc0ed5929f04a27e0c017f9fe
+      size: 24720
     outs:
     - path: data/processed/island_load_hourly.csv
       hash: md5
@@ -81,8 +81,8 @@ stages:
       size: 4157844
     - path: data/processed/load_parameters.json
       hash: md5
-      md5: 52eab035bcf604faa927a26a70b4e169
-      size: 3310
+      md5: 657fe427565226c7b9f804e68d79bc97
+      size: 3406
   load_check:
     cmd: "PYTHONPATH=services/learned/module1_state_forecasting/src python -m module1.data.load
       validate data/processed/island_load_hourly.csv data/processed/ceb_generation_tidy.csv\n"
@@ -97,5 +97,48 @@ stages:
       size: 4157844
     - path: services/learned/module1_state_forecasting/src/module1/data/load.py
       hash: md5
-      md5: 0c504018e21cf612a5433027544e4047
-      size: 22852
+      md5: 9e0dd18dc0ed5929f04a27e0c017f9fe
+      size: 24720
+  scenario_library:
+    cmd: "PYTHONPATH=services/learned/module1_state_forecasting/src python -m module1.data.scenarios
+      build data/processed/ceb_generation_tidy.csv data/processed\n"
+    deps:
+    - path: data/processed/ceb_generation_tidy.csv
+      hash: md5
+      md5: 7bd415931d5f86cb3bb4111095888717
+      size: 13292
+    - path: 
+        services/learned/module1_state_forecasting/src/module1/data/scenarios.py
+      hash: md5
+      md5: db258bd27a5c2e3f7b4263f110761baa
+      size: 16385
+    outs:
+    - path: data/processed/events.csv
+      hash: md5
+      md5: 9315081039e509626c8c1d95ea0a596a
+      size: 3309
+    - path: data/processed/scenario_library.json
+      hash: md5
+      md5: 749d92eb8ea6c173b308d2c001bdb448
+      size: 14404
+  scenario_check:
+    cmd: "PYTHONPATH=services/learned/module1_state_forecasting/src python -m module1.data.scenarios
+      validate data/processed data/processed/ceb_generation_tidy.csv\n"
+    deps:
+    - path: data/processed/ceb_generation_tidy.csv
+      hash: md5
+      md5: 7bd415931d5f86cb3bb4111095888717
+      size: 13292
+    - path: data/processed/events.csv
+      hash: md5
+      md5: 9315081039e509626c8c1d95ea0a596a
+      size: 3309
+    - path: data/processed/scenario_library.json
+      hash: md5
+      md5: 749d92eb8ea6c173b308d2c001bdb448
+      size: 14404
+    - path: 
+        services/learned/module1_state_forecasting/src/module1/data/scenarios.py
+      hash: md5
+      md5: db258bd27a5c2e3f7b4263f110761baa
+      size: 16385
