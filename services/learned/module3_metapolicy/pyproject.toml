@@ -6,18 +6,10 @@ requires-python = ">=3.11"
 dependencies = [
   "grpcio>=1.66",
   "pydantic>=2.9",
+  "torch>=2.4",
   "gymnasium>=1.0",
   "onnx>=1.17",
   "numpy>=2.0",
-]
-
-# The deep-learning stack is an extra, not a base dependency. Everything that is not model
-# training or inference -- the calibration stages, the contracts, the service scaffolding -- runs
-# without it, and pulling ~2 GB of wheels to run a reconciliation gate is a poor trade. Install it
-# when you need it:  uv sync --all-packages --all-extras
-[project.optional-dependencies]
-models = [
-  "torch>=2.4",
 ]
 
 [build-system]
