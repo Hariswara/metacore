@@ -63,6 +63,7 @@ that M3 gates on.
 | `nasa_power.py` | `nasa_power_pull` / `nasa_power_check` | Hourly meteorology for the four islands, and its gate |
 | `load.py` | `load_downscale` / `load_check` | Monthly island energy → hourly load, and its gate |
 | `scenarios.py` | `scenario_library` / `scenario_check` | The shared ID/OOD scenario library M2 evaluates against, and its gate |
+| `synthetic.py` | `task data:synthetic` | Stand-in ledger and meteorology so the pipeline runs with no CEB workbook (ADR 0004) |
 
 `nasa_power_pull` is **frozen** in `data/dvc.yaml`: it is a network fetch of ~70,000 site-hours
 from a free public API, so it is deliberately excluded from the default `dvc repro`. Refresh it
@@ -71,6 +72,12 @@ with `task data:pull`.
 The NASA POWER stage carries a measured constraint worth reading before modelling anything
 spatial: the source does not resolve these islands. See
 [`docs/data/nasa-power-resolution.md`](../../../../../../docs/data/nasa-power-resolution.md).
+
+`synthetic.py` is not a DVC stage on purpose. DVC's job is provenance for the measured
+artifacts, and a stage cannot have a dependency that is legitimately absent. It runs from
+`task data:synthetic` and from the `data` CI lane, into a git-ignored `.synthetic/`. Every gate
+runs against it unmodified — if a gate ever has to be weakened to admit synthetic input, that is
+the signal the fallback has stopped standing in for the real thing.
 
 `scenarios.py` reads the *per-plant* ledger rather than the hourly island series, and that is the
 whole point of it. Summing the two Eluvaitivu plants into one island demand is correct for dispatch

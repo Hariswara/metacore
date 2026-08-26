@@ -58,3 +58,6 @@ Thumbs.db
 
 # Notebooks
 .ipynb_checkpoints/
+
+# Synthetic stand-in inputs (task data:synthetic). Never the real artifacts.
+/.synthetic/

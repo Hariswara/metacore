@@ -54,6 +54,15 @@ The parameter set ships with a synthetic fallback covering every field. `data/RE
 that nothing in `external/` becomes a build requirement; the fallback is what makes that true in
 code rather than in prose, and CI builds against it.
 
+Implemented in [`module1/data/synthetic.py`](../../services/learned/module1_state_forecasting/src/module1/data/synthetic.py),
+run by `task data:synthetic` and by the `data` CI lane. It generates a monthly ledger and two
+years of hourly meteorology for the four sites, and every downstream stage and gate runs against
+it unmodified — no gate is relaxed to admit it. The annual totals are the transcribed
+`Data_CEB_Jaffna.pdf` figures already held in `validate.py` as the reconciliation reference, so
+the reconciliation gate is genuinely exercised; nothing below the year is real, and no weather
+value is real. Outputs are labelled `synthetic: true` and carry a `PROVENANCE.json` saying not to
+publish results computed from them.
+
 ## Rationale
 
 The two jobs differ on every axis that architecture responds to — cadence (months vs seconds),
