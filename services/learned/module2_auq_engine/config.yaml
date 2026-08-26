@@ -18,5 +18,9 @@ trigger:
   # observed_fraction, so ordinary interpolated data does not fire but a lost
   # modality does.
   value_false_alarm_rate: 0.05
-  observed_fraction_floor: 0.4
+  # Nominal observed_fraction on the real 28-feature vector is 12/28 = 0.4286: the four
+  # temporal and eight static-topology features. The floor sits below a stray single-feature
+  # drop (11/28 = 0.393) and above the loss of the whole temporal modality (8/28 = 0.286),
+  # so it fires on a lost channel and not on ordinary jitter.
+  observed_fraction_floor: 0.35
   hysteresis: 2             # consecutive steps to confirm / clear a competence drop

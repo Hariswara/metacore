@@ -34,6 +34,11 @@ in-distribution `u` at M1's nominal quality, and a blackout only pushes `u` part
 there. Measured: a single threshold caught **39%** of blackout states; the two-condition
 trigger catches **100%**, at the same 5% false-alarm rate on normal operation.
 
+On the real contract, **12 of 28 features are `QUALITY_OBSERVED`** (the four temporal and
+eight static-topology ones), so nominal `observed_fraction` is **12/28 = 0.4286**. The
+sensing floor is **0.35**: below a stray single-feature drop (11/28 = 0.393), above the
+loss of a whole modality (temporal block gone → 8/28 = 0.286).
+
 ## Verified results (`python run_demo.py`)
 
 **Headline — `u` predicts error.** This is the claim the module rests on, and it is not
@@ -69,7 +74,7 @@ Competence-drop trigger — two conditions, OR'd, with the reason it fired:
 |---|---|---|
 | normal operation (`observed_fraction` 0.4286) | 0.050 | `none` 0.95, `value` 0.05 |
 | cyclone (value-OOD) | 1.000 | `value` 1.00 |
-| comms blackout (`observed_fraction` < 0.40) | 1.000 | `sensing` 0.94, `both` 0.06 |
+| comms blackout (`observed_fraction` < 0.35) | 1.000 | `sensing` 0.94, `both` 0.06 |
 
 Magnitude along the quality axis — the same in-distribution states, less of them observed:
 

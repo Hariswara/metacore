@@ -17,7 +17,7 @@ from state_contract import stack_features
 from synthetic_data import sample_states_blackout, sample_states_id, sample_states_ood
 from trigger import CompetenceDropTrigger
 
-OF_FLOOR = 0.4
+OF_FLOOR = 0.35
 
 
 @pytest.fixture(scope="module")
