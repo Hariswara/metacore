@@ -43,6 +43,24 @@ tasks:
     cmds:
       - uv run --isolated --with dvc dvc repro --force data/dvc.yaml:nasa_power_pull
 
+  # ADR 0004 promises the pipeline runs with nothing from data/external/. This is the proof, and
+  # it runs in CI. Deliberately not routed through DVC: DVC's job is provenance for the measured
+  # artifacts, and a stage cannot have a dependency that is legitimately absent. Outputs land in
+  # .synthetic/, which is git-ignored -- they must never be mistaken for the real artifacts.
+  data:synthetic:
+    desc: Build and gate the whole calibration pipeline on synthetic input (no CEB workbook)
+    env:
+      PYTHONPATH: services/learned/module1_state_forecasting/src
+    cmds:
+      - rm -rf .synthetic
+      - uv run python -m module1.data.synthetic build .synthetic
+      - uv run python -m module1.data.validate .synthetic/ceb_generation_tidy.csv
+      - uv run python -m module1.data.nasa_power validate .synthetic/nasa_power
+      - uv run python -m module1.data.load downscale .synthetic/ceb_generation_tidy.csv .synthetic/nasa_power .synthetic/island_load_hourly.csv
+      - uv run python -m module1.data.load validate .synthetic/island_load_hourly.csv .synthetic/ceb_generation_tidy.csv
+      - uv run python -m module1.data.scenarios build .synthetic/ceb_generation_tidy.csv .synthetic
+      - uv run python -m module1.data.scenarios validate .synthetic .synthetic/ceb_generation_tidy.csv
+
   # The DVC remote is a plain directory at .dvc/onedrive-mount, which rclone mounts onto the
   # team's OneDrive folder. The path is repo-relative on purpose: it resolves identically on
   # every machine, so nobody has to override it. One-time setup in docs/data/dvc-remote.md.
