@@ -3,8 +3,10 @@
 A runnable, self-contained starter for **Module 2** (Duwaragie K., J26-DS-317).
 It trains an Evidential Deep Learning head on **synthetic** island grid-states and shows
 epistemic uncertainty staying low on normal states and rising to 1.0 on cyclone
-(out-of-distribution) states — the core thesis of the module. It consumes M1's
-`StateRepresentation` contract shape, mocked. Drop-in location in the repo:
+(out-of-distribution) states — the core thesis of the module. It consumes M1's real
+pinned `StateRepresentation` contract — **64-dim embedding, 28 ordered features,
+`SchemaVersion(1, 0)`** — read from `metacore_contracts.state_schema` rather than copied,
+so the mock cannot drift from the schema. Drop-in location in the repo:
 `services/learned/module2_auq_engine/`.
 
 **Competence drop triggers on value-OOD *or* sensing loss, and says which.** Uncertainty
@@ -40,41 +42,41 @@ prediction asks whether the uncertainty is *usable* as a decision to abstain.
 
 | Selective prediction (in-distribution) | Value |
 |---|---|
-| accuracy at full coverage | 0.947 |
+| accuracy at full coverage | 0.945 |
 | accuracy at 50% coverage (reject highest `u`) | **1.000** |
-| accuracy at 75% coverage | 0.999 |
-| **AURC** | **0.0048** |
-| AURC with the ranking shuffled | 0.0563 |
+| accuracy at 75% coverage | 0.997 |
+| **AURC** | **0.0057** |
+| AURC with the ranking shuffled | 0.0498 |
 
 Rejecting the least-certain half of the states removes every error. The shuffled row is
-the control: a random ranking scores 12× worse, so the result comes from `u` and not from
+the control: a random ranking scores ~9× worse, so the result comes from `u` and not from
 the data being easy.
 
 | Metric | Value | Target |
 |---|---|---|
-| ID 3-class accuracy | 0.947 | — |
-| value-only u (ID / OOD) | 0.106 / 1.000 | ID low, OOD high |
-| emitted u (ID / OOD), at `observed_fraction` 0.50 | 0.172 / 1.000 | ID low, OOD high |
-| emitted u (comms blackout) | 0.291 | rises although values are normal |
+| ID 3-class accuracy | 0.945 | — |
+| value-only u (ID / OOD) | 0.067 / 1.000 | ID low, OOD high |
+| emitted u (ID / OOD), at nominal `observed_fraction` 0.4286 | 0.133 / 1.000 | ID low, OOD high |
+| emitted u (comms blackout) | 0.209 | rises although values are normal |
 | AUROC (u, OOD vs ID) | 0.999 | ≥ 0.90 |
 | AUPR (OOD) | 0.999 | high |
-| FPR95 | 0.004 | low |
-| ECE (calibration) | 0.051 | near 0 |
+| FPR95 | 0.002 | low |
+| ECE (calibration) | 0.028 | near 0 |
 
 Competence-drop trigger — two conditions, OR'd, with the reason it fired:
 
 | population | fires | reason breakdown |
 |---|---|---|
-| normal operation (`observed_fraction` 0.50) | 0.050 | `none` 0.95, `value` 0.05 |
+| normal operation (`observed_fraction` 0.4286) | 0.050 | `none` 0.95, `value` 0.05 |
 | cyclone (value-OOD) | 1.000 | `value` 1.00 |
-| comms blackout (`observed_fraction` < 0.40) | 1.000 | `sensing` 0.96, `both` 0.04 |
+| comms blackout (`observed_fraction` < 0.40) | 1.000 | `sensing` 0.94, `both` 0.06 |
 
 Magnitude along the quality axis — the same in-distribution states, less of them observed:
 
-| `observed_fraction` | 1.00 | 0.75 | 0.50 | 0.25 | 0.10 |
-|---|---|---|---|---|---|
-| mean u (in-distribution) | 0.105 | 0.130 | 0.173 | 0.271 | 0.440 |
-| mean u (cyclone) | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
+| `observed_fraction` | 1.00 | 0.75 | 0.50 | **0.4286** | 0.25 | 0.10 |
+|---|---|---|---|---|---|---|
+| mean u (in-distribution) | 0.067 | 0.085 | 0.118 | **0.133** | 0.199 | 0.356 |
+| mean u (cyclone) | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
 
 ### Why the trigger is not just a threshold on `u`
 
@@ -83,10 +85,10 @@ Ranking a mixed stream by the combined `u` and keeping the most-confident half:
 | | normal | cyclone | blackout |
 |---|---|---|---|
 | full stream | 0.385 | 0.308 | 0.308 |
-| kept half | 0.670 | **0.000** | **0.330** |
+| kept half | 0.653 | **0.000** | **0.347** |
 
 The magnitude clears the value axis completely and does **not** clear the sensing axis —
-a blackout at `observed_fraction` 0.375 discounts a confident state into the same `u`
+a blackout at `observed_fraction` ~0.25 discounts a confident state into the same `u`
 range as an ordinary one, so blackouts survive the cut (their share even rises, because
 the cyclones ahead of them are removed). The explicit `observed_fraction` floor is what
 catches them: the two-condition trigger fires on 1.000 of cyclones **and** 1.000 of
@@ -99,22 +101,22 @@ the uncertainty mechanism and nothing else.
 
 | method | AUROC | AUPR | FPR95 | ECE | ID acc | ms/sample |
 |---|---|---|---|---|---|---|
-| Softmax max-prob | 0.024 | 0.430 | 1.000 | 0.048 | 0.945 | 0.0003 |
-| MC-Dropout (T=20) | 0.000 | 0.265 | 1.000 | 0.017 | 0.948 | 0.0338 |
-| **EDL (ours)** | **0.999** | **0.987** | **0.003** | 0.047 | 0.961 | 0.0005 |
-| EDL, no OOD-reg (ablation) | 0.000 | 0.265 | 1.000 | 0.025 | 0.957 | 0.0005 |
+| Softmax max-prob | 0.019 | 0.384 | 1.000 | 0.054 | 0.937 | 0.0004 |
+| MC-Dropout (T=20) | 0.000 | 0.265 | 1.000 | 0.019 | 0.940 | 0.0467 |
+| **EDL (ours)** | **0.999** | **0.999** | **0.001** | 0.025 | 0.933 | 0.0008 |
+| EDL, no OOD-reg (ablation) | 0.000 | 0.265 | 1.000 | 0.027 | 0.929 | 0.0009 |
 
 Two findings, and the second is the contribution.
 
-**1. The baselines do not merely underperform — they invert.** An AUROC of 0.024 means the
+**1. The baselines do not merely underperform — they invert.** An AUROC of 0.019 means the
 score is *anti*-correlated with being out of distribution. Measured directly: the softmax
-network's max probability is **1.0000 on every one of the 800 cyclone states**, against a
-mean of 0.9909 on normal ones. It is more certain about conditions it has never seen than
+network's max probability saturates at **1.0000 on essentially every cyclone state**, above
+its mean on normal ones. It is more certain about conditions it has never seen than
 about the ones it was trained on. This is the documented behaviour of ReLU networks far
 from their training data (Hein et al., *Why ReLU networks yield high-confidence
 predictions far away from the training data*, CVPR 2019), not an artefact of this setup —
 which is why a better-tuned baseline would not rescue it. AUPR says the same thing: the
-positive base rate here is 0.444, and the failing methods sit at 0.265, below chance.
+positive base rate here is 0.444, and the failing methods sit at 0.265-0.384, below chance.
 
 **2. The OOD-aware regulariser is load-bearing, not the Dirichlet head.** The ablation is
 identical in every respect except `ood_reg = 0`, and it collapses to 0.000 — the same
@@ -122,10 +124,12 @@ failure as the softmax baseline. Evidential output on its own does not solve far
 tabular data; driving evidence → 0 on far proxy points is what does.
 
 Worth noting what the table does *not* say: the baselines rank in-distribution errors
-perfectly acceptably (softmax AURC 0.006 against our 0.003). They fail specifically at
-recognising a state they have never seen — which is the one thing this module exists to do.
+just as well as we do — softmax AURC **0.008** against our **0.009**, i.e. marginally
+*better*. They fail specifically at recognising a state they have never seen, which is the
+one thing this module exists to do. Selective prediction and OOD detection are different
+questions, and that is exactly why the module needs both evaluations.
 
-MC-Dropout is both inverted and 68× slower per sample, because its score costs T=20
+MC-Dropout is both inverted and ~58× slower per sample, because its score costs T=20
 forward passes. On a gate that runs per control step, that is the difference between
 viable and not.
 
@@ -145,18 +149,18 @@ python bench_latency.py   # writes latency_table.json
 
 | backend | mean ms | p50 ms | p99 ms | amortised ms/sample | optimism |
 |---|---|---|---|---|---|
-| torch-eager | 0.0462 | 0.0425 | 0.0857 | 0.0001 | **303×** |
-| ONNX Runtime | 0.0227 | **0.0196** | **0.0462** | n/a | — |
+| torch-eager | 0.0973 | 0.0751 | 0.3098 | 0.0003 | **276×** |
+| ONNX Runtime | 0.0383 | **0.0355** | **0.0870** | n/a | — |
 
 **Batch-1 is the only honest number here.** The gate scores one state per control step, so
 its cost is the latency of a single call. Dividing a batch-1000 forward pass by 1000 hides
 per-call dispatch and kernel launch completely and reports a figure the real path never
-sees — here it is **303× more optimistic** than what the gate actually pays. The
+sees — here it is **276× more optimistic** than what the gate actually pays. The
 `ms/sample` column in `comparison_table.json` is exactly that optimistic, and should be
 read as throughput, not latency.
 
-ONNX Runtime is 2.2× faster than torch-eager at batch-1 (p50 0.0196 ms vs 0.0425 ms) and
-halves the tail (p99 0.0462 ms vs 0.0857 ms). The tail is the number that matters for a
+ONNX Runtime is 2.1× faster than torch-eager at batch-1 (p50 0.0355 ms vs 0.0751 ms) and
+cuts the tail by 3.6× (p99 0.0870 ms vs 0.3098 ms). The tail is the number that matters for a
 step deadline: a p99 that blows the budget is a missed step, not a slow one. Both backends
 are comfortably sub-millisecond, so uncertainty scoring is not what constrains the control
 loop — deliberation is, which is the premise M3's cost model rests on.
@@ -176,7 +180,7 @@ into the artifact would mean re-exporting to retune a threshold.
 `edl.onnx.json` is the model card, and it carries the **normalisation statistics**. Without
 them the graph is unusable: it expects standardised input, and `mu`/`sd` are training-set
 properties that live nowhere else. The artifact is self-contained (`external_data=False`)
-— 15.5 KB, opset 18, no sidecar file to lose on the way to deployment.
+— 28 inputs to 3 evidence outputs, opset 18, no sidecar file to lose on the way to deployment.
 
 `edl.onnx` itself is **not committed**: the repo-wide `.gitignore` excludes `*.onnx` under
 "Models & artefacts". Regenerate it with `python export_onnx.py` — training is seeded and
@@ -207,7 +211,7 @@ python run_demo.py
 
 ## Files
 - `state_contract.py` — **dataclass mirror of M1's `StateRepresentation`** + `Envelope` / `QualityMask` / `ScenarioRef`. What the module develops against until M1's producer is live.
-- `synthetic_data.py` — **mock M1 state generator** (ID normal + OOD cyclone), emitting `StateRepresentation`. Replace with the real M1→M2 adapter when it lands.
+- `synthetic_data.py` — **mock M1 state generator** (ID normal + OOD cyclone + comms blackout), emitting `StateRepresentation` over the real 28 pinned features. Replace with the real M1→M2 adapter when it lands.
 - `edl.py` — EDL head, `u = K/S`, quality-aware `u`, Dirichlet KL, EDL loss, OOD-aware evidence regulariser.
 - `trigger.py` — two-condition competence-drop trigger (value threshold OR sensing floor, hysteresis, reason).
 - `evaluate.py` — AUROC / AUPR / FPR95 / ECE plus risk-coverage / AURC, reliability and retained-composition **tables** (NumPy, no plotting).
@@ -228,9 +232,9 @@ python run_demo.py
 4. **A blackout does not corrupt the feature values, only the mask.** That is deliberate. If missing channels also perturbed the numbers, blackout states would drift value-OOD and the two axes would stop being separable — which is exactly what the trigger is trying to distinguish. The mask carries the provenance; the array carries whatever M1 imputed.
 
 ## What is mocked vs real
-- **Mock now:** the input states (stand-in for M1's shared ID/OOD scenario library) and the K safety classes' feature ranges.
+- **Mock now:** the input *values* only. The schema around them — names, order, embedding width, per-feature quality, version — is the real pinned contract, imported from `metacore_contracts.state_schema`.
 - **Real later:** swap `synthetic_data.sample_states_*` for M1's real producer — `state_contract.py` already mirrors the message, so nothing downstream of `stack_features` changes. Then feed M4's rejection traces back in (feedback loop) and export to ONNX for the real-time path.
-- **Not yet pinned by M1:** `embedding_dim`, a stamped `Envelope.schema_version`, and a label for the Eluvaitivu Oct–Dec 2025 degradation window. The mock embedding is noise — train on `node_features`, not `node_embedding`.
+- **Now pinned by M1:** `embedding_dim = 64`, `SchemaVersion(1, 0)`, the 28 feature names, and the Eluvaitivu Oct–Dec 2025 label (`eluvaitivu-hybrid-decay-2025q4`, in `data/processed/events.csv`). The mock embedding is still noise — train on `node_features`, not `node_embedding`.
 
 ## Independent-work roadmap (while the data model is being set up)
 1. **Define the K safety classes** for real (here: safe / stressed / critical) — the load-bearing decision.

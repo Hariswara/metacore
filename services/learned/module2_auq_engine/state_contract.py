@@ -18,9 +18,11 @@ and `packages/contracts/proto/common.proto` exactly. Two notes on the mapping:
   head consumes; `node_count` and `embedding_dim` are the row/column counts a
   real decoder would reshape by, and `__post_init__` enforces the agreement.
 
-We deliberately do NOT import the generated `metacore_contracts.module1_pb2`
-yet: its stubs emit a flat `import common_pb2`, so package-qualified import
-raises `ModuleNotFoundError`. Tracked in the M1 review; switch over once fixed.
+`SchemaVersion` and the pinned version itself come from
+`metacore_contracts.state_schema`, so this mirror cannot drift from the contract
+without a test failing. The generated `module1_pb2` is importable now that M1
+fixed the stub imports; `tests/test_state_contract.py` uses it to assert that
+these dataclasses still match the real message field for field.
 """
 
 from __future__ import annotations
@@ -28,6 +30,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 
 import numpy as np
+from metacore_contracts.state_schema import SCHEMA_VERSION, SchemaVersion
 
 # common.proto: enum Quality. Spelled as strings so the mock does not depend on
 # the generated enum ints; the names are the proto's, verbatim.
@@ -44,14 +47,6 @@ QUALITY_VALUES = frozenset({
     QUALITY_MISSING,
     QUALITY_STALE,
 })
-
-
-@dataclass
-class SchemaVersion:
-    """common.proto: message SchemaVersion."""
-
-    major: int
-    minor: int
 
 
 @dataclass
@@ -77,8 +72,8 @@ class Envelope:
     there is no live mode, so in practice it is always set.
     """
 
-    schema_version: SchemaVersion
-    emitted_at: float
+    schema_version: SchemaVersion = SCHEMA_VERSION
+    emitted_at: float = 0.0
     producer: str = "module1"
     scenario: ScenarioRef | None = None
     trace_id: str = ""

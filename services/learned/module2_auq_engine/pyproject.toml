@@ -5,6 +5,9 @@ description = "Module 2 — Agentic Epistemic Uncertainty Quantification (Duwara
 requires-python = ">=3.11"
 dependencies = [
   "grpcio>=1.66",
+  # The pinned M1 state contract: feature names, order, embedding width, per-feature
+  # quality. Imported rather than copied so the mock cannot drift from the real schema.
+  "metacore-contracts",
   "pydantic>=2.9",
   # Pinned to a minor version, not >=2.4. Training here is seeded and bit-reproducible
   # in-process, but the reported metrics still moved between environments because the
@@ -23,6 +26,11 @@ viz = ["matplotlib>=3.7"]
 # tests/test_onnx.py skips cleanly when onnxruntime is absent:
 #   uv sync --package metacore-module2 --extra onnx
 onnx = ["onnx>=1.16", "onnxruntime>=1.18", "onnxscript>=0.1"]
+
+# metacore-contracts is a workspace member, not a PyPI package. Declared here rather than
+# in the root pyproject so adding it does not touch a shared file.
+[tool.uv.sources]
+metacore-contracts = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

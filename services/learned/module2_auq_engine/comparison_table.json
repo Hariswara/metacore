@@ -10,43 +10,43 @@
   "rows": [
     {
       "method": "Softmax max-prob",
-      "auroc": 0.0236,
-      "aupr": 0.4304,
+      "auroc": 0.0186,
+      "aupr": 0.3841,
       "fpr95": 1.0,
-      "ece": 0.0475,
-      "aurc": 0.0059,
-      "id_accuracy": 0.945,
-      "ms_per_sample": 0.000267
+      "ece": 0.054,
+      "aurc": 0.0083,
+      "id_accuracy": 0.937,
+      "ms_per_sample": 0.000371
     },
     {
       "method": "MC-Dropout (T=20)",
       "auroc": 0.0,
       "aupr": 0.2653,
       "fpr95": 1.0,
-      "ece": 0.0173,
-      "aurc": 0.0103,
-      "id_accuracy": 0.948,
-      "ms_per_sample": 0.033786
+      "ece": 0.019,
+      "aurc": 0.0132,
+      "id_accuracy": 0.94,
+      "ms_per_sample": 0.046723
     },
     {
       "method": "EDL (ours)",
-      "auroc": 0.999,
-      "aupr": 0.9866,
-      "fpr95": 0.003,
-      "ece": 0.0472,
-      "aurc": 0.0026,
-      "id_accuracy": 0.961,
-      "ms_per_sample": 0.000521
+      "auroc": 0.9992,
+      "aupr": 0.9987,
+      "fpr95": 0.001,
+      "ece": 0.0251,
+      "aurc": 0.0087,
+      "id_accuracy": 0.933,
+      "ms_per_sample": 0.000786
     },
     {
       "method": "EDL, no OOD-reg (ablation)",
       "auroc": 0.0,
       "aupr": 0.2653,
       "fpr95": 1.0,
-      "ece": 0.0251,
-      "aurc": 0.0039,
-      "id_accuracy": 0.957,
-      "ms_per_sample": 0.000511
+      "ece": 0.0273,
+      "aurc": 0.0082,
+      "id_accuracy": 0.929,
+      "ms_per_sample": 0.000886
     }
   ]
 }

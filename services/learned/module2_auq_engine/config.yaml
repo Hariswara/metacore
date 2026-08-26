@@ -2,7 +2,8 @@
 seed: 0
 k_classes: 3
 class_names: [safe, stressed, critical]
-features: [voltage_pu, load_factor, freq_dev_hz, wind_ms, rainfall_mm, solar_wm2, gen_margin, temp_c]
+# Features come from the pinned contract (metacore_contracts.state_schema.FEATURE_NAMES),
+# not from this file -- 28 names, fixed order. Listed nowhere here so the two cannot diverge.
 train:
   epochs: 300
   batch_size: 128
@@ -13,8 +14,8 @@ train:
   ood_proxy_sigma: 4.0      # spread of the far-OOD proxy (standardised space)
 trigger:
   # Two conditions, OR'd. The value threshold is the (1 - far) quantile of plain,
-  # quality-independent in-distribution u; the floor sits just under M1's nominal
-  # observed_fraction (0.5), so ordinary interpolated data does not fire but a lost
+  # quality-independent in-distribution u; the floor keys off M1's nominal
+  # observed_fraction, so ordinary interpolated data does not fire but a lost
   # modality does.
   value_false_alarm_rate: 0.05
   observed_fraction_floor: 0.4

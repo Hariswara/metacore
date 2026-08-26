@@ -134,9 +134,9 @@ def fire(value_u, of):
 print(f"\nvalue threshold             : {trig.vthr:.3f}   "
       f"(observed_fraction floor {trig.of_floor})")
 print(f"{'population':<26}  {'fires':>6}   reason breakdown")
-for name, vu, of in (("normal ID (of=0.50)", vu_id, of_te),
+for name, vu, of in ((f"normal ID (of={of_te[0]:.2f})", vu_id, of_te),
                      ("cyclone (value-OOD)", vu_ood, of_ood),
-                     ("blackout (of<0.40)", vu_bo, of_bo)):
+                     (f"blackout (of<{trig.of_floor})", vu_bo, of_bo)):
     fired, reasons = fire(vu, of)
     counts = {r: reasons.count(r)/len(reasons) for r in sorted(set(reasons))}
     breakdown = "  ".join(f"{r} {c:.2f}" for r, c in counts.items())

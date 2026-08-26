@@ -31,13 +31,16 @@ from evaluate import aupr, auroc
 from state_contract import stack_features
 from synthetic_data import Normalizer, sample_states_id, sample_states_ood
 
-N_TRAIN, N_ID, N_OOD, EPOCHS = 800, 400, 300, 40
+# Raised from 800/40 when the vector widened from 8 to 28 features: at the old scale
+# `ours` was under-trained (AUROC 0.69) and the test, while still passing on ordering,
+# was comparing a half-trained model. 1200/60 reaches 0.99 for the same ~4s.
+N_TRAIN, N_ID, N_OOD, EPOCHS = 1200, 400, 300, 60
 INVERTED = 0.5          # AUROC below this means the score is anti-correlated with OOD-ness
 
 
 @pytest.fixture(scope="module")
 def bench():
-    """Four models on identical data, plus a scorer for each. ~6s."""
+    """Four models on identical data, plus a scorer for each. ~4s."""
     rng = np.random.default_rng(0)
     torch.manual_seed(0)
     tr, ytr = sample_states_id(N_TRAIN, rng, blackout_rate=0.0)
