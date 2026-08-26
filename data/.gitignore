@@ -1,7 +1,9 @@
-# Ignore dataset blobs; keep the directory skeleton and the docs that describe it.
-# Note: a bare `raw/**` also excludes the directories themselves, which stops git
-# descending far enough to honour any negation below it — hence the explicit `!*/`
-# re-includes for directories.
+# Dataset blobs are ignored by default; the published calibration artifacts are the exception
+# and are tracked in git (dvc.yaml marks them `cache: false`). 9 MB total, and it means a clone
+# has them without a DVC remote -- see README.md.
+#
+# Note: a bare `raw/**` also excludes the directories themselves, which stops git descending far
+# enough to honour any negation below it -- hence the explicit `!*/` re-includes for directories.
 raw/**
 processed/**
 external/**
@@ -12,6 +14,20 @@ external/**
 !external/*/
 !external/*/*/
 
+# The published artifacts. Listed one by one rather than un-ignoring `processed/**`, so a stray
+# scratch file in there still stays out of the repo by default.
+!processed/ceb_generation_tidy.csv
+!processed/island_load_hourly.csv
+!processed/load_parameters.json
+!processed/events.csv
+!processed/scenario_library.json
+!raw/nasa_power/*.csv
+!raw/nasa_power/manifest.json
+
+# external/ stays ignored in full. The CEB workbook is state-entity data provided for calibration
+# and is not ours to redistribute; ADR 0004's synthetic fallback is what makes that survivable.
+
 !**/.gitkeep
 !**/README.md
 !dvc.yaml
+!dvc.lock

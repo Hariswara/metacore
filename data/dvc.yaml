@@ -22,7 +22,8 @@ stages:
       - services/learned/module1_state_forecasting/src/module1/data/ceb.py
       - services/learned/module1_state_forecasting/src/module1/data/xlsx.py
     outs:
-      - data/processed/ceb_generation_tidy.csv
+      - data/processed/ceb_generation_tidy.csv:
+          cache: false
 
   ceb_reconcile:
     wdir: ..
@@ -55,7 +56,8 @@ stages:
       python -m module1.data.nasa_power fetch data/raw/nasa_power
       --start 20240101 --end 20251231
     outs:
-      - data/raw/nasa_power
+      - data/raw/nasa_power:
+          cache: false
 
   nasa_power_check:
     wdir: ..
@@ -89,8 +91,10 @@ stages:
       - data/raw/nasa_power
       - services/learned/module1_state_forecasting/src/module1/data/load.py
     outs:
-      - data/processed/island_load_hourly.csv
-      - data/processed/load_parameters.json
+      - data/processed/island_load_hourly.csv:
+          cache: false
+      - data/processed/load_parameters.json:
+          cache: false
 
   load_check:
     wdir: ..
@@ -128,8 +132,10 @@ stages:
       - data/processed/ceb_generation_tidy.csv
       - services/learned/module1_state_forecasting/src/module1/data/scenarios.py
     outs:
-      - data/processed/events.csv
-      - data/processed/scenario_library.json
+      - data/processed/events.csv:
+          cache: false
+      - data/processed/scenario_library.json:
+          cache: false
 
   scenario_check:
     wdir: ..

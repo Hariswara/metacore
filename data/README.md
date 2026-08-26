@@ -1,7 +1,35 @@
 # Data
 
 All datasets used to build and evaluate MetaCore are **open or simulated**, so no ethics gate and no
-external approval blocks development. Blobs are tracked by DVC and ignored by git.
+external approval blocks development.
+
+## Where the artifacts live
+
+DVC is the pipeline engine — stages, dependency graph, `dvc.lock` provenance and all four gates.
+It is **not** the transport. Every output is marked `cache: false` in `dvc.yaml`, so the published
+artifacts are tracked in git and a clone has them immediately: no `dvc pull`, no remote, no
+account to authorise.
+
+That is a deliberate reversal of the usual DVC arrangement, and it is worth recording why. Two
+remotes were tried and both are blocked by policy, not by anything we control:
+
+- **SLIIT OneDrive (`metacore@sliit.lk`).** A Microsoft 365 Group is not a sign-in account, and
+  the SLIIT tenant disables user consent for third-party applications — authorising rclone returns
+  *"Approval required"*. A private Azure app does not help: reaching a group's document library
+  needs `Files.ReadWrite.All` and `Sites.Read.All`, both admin-consent-only.
+- **Google Drive.** DVC's built-in OAuth client requests the full `drive` scope, is unverified,
+  and Google now refuses it outright — *"This app is blocked"*. The scope is not configurable:
+  `dvc_gdrive` never passes `oauth_scope` through to pydrive2.
+
+The whole cache is **9 MB across 10 files**, so git handles it without strain, and the trade is
+worth naming: each regeneration of `island_load_hourly.csv` adds ~4 MB to history permanently.
+`raw/nasa_power` is `frozen:` in the pipeline and changes only on a deliberate refresh. If the
+dataset grows past a few tens of MB, revisit this — a working remote (a SLIIT server over SSH, or
+a private Google OAuth client) drops back in as one line in `.dvc/config`, and nothing else moves.
+
+`external/` stays git-ignored in full. The CEB workbook is state-entity data provided for
+calibration and is not ours to redistribute, which is exactly what ADR 0004's synthetic fallback
+(`task data:synthetic`) exists to survive.
 
 | Path | Source | Use |
 |---|---|---|
