@@ -2,8 +2,8 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-import common_pb2 as common__pb2
-import verification_pb2 as verification__pb2
+from . import common_pb2 as common__pb2
+from . import verification_pb2 as verification__pb2
 
 
 class VerificationServiceStub:

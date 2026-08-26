@@ -2,8 +2,8 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-import common_pb2 as common__pb2
-import module1_pb2 as module1__pb2
+from . import common_pb2 as common__pb2
+from . import module1_pb2 as module1__pb2
 
 
 class StateRepresentationServiceStub:

@@ -25,6 +25,10 @@ tasks:
     cmds:
       - "{{.BIN}}/buf lint"
       - "{{.BIN}}/buf generate"
+      # protoc emits `import common_pb2` -- a flat import that only resolves if the package
+      # directory is itself on sys.path. Rewrite it to a package-relative import so the stubs are
+      # importable as `metacore_contracts.module1_pb2`. Idempotent; see the script's docstring.
+      - uv run --isolated --no-project python fix_python_imports.py
 
   # Every `uv run` reshapes .venv to match its flags. The data and lint lanes therefore run
   # --isolated: they need one tool, not the workspace, and syncing the venv down to their needs

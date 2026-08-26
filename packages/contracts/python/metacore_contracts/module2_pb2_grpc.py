@@ -2,8 +2,8 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-import common_pb2 as common__pb2
-import module2_pb2 as module2__pb2
+from . import common_pb2 as common__pb2
+from . import module2_pb2 as module2__pb2
 
 
 class UncertaintyServiceStub:
