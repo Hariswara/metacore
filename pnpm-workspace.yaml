@@ -1,3 +1,9 @@
 packages:
   - "apps/*"
   - "packages/ts_common"
+
+# pnpm 11 refuses to finish an install that silently skipped a postinstall script, and exits with
+# ERR_PNPM_IGNORED_BUILDS. esbuild (via vite, in apps/dashboard) unpacks a platform binary in
+# exactly that way, so without this entry `pnpm install` fails outright on a fresh clone and in CI.
+allowBuilds:
+  esbuild: true
