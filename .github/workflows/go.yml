@@ -13,5 +13,9 @@ jobs:
       - uses: actions/setup-go@v5
         with: { go-version: "1.22" }
       - run: go work sync
-      - run: go vet ./...
-      - run: go test ./...
+      # `./...` is resolved against the current directory, and the repo root is not itself a
+      # module in go.work -- so a bare `go vet ./...` here fails with "directory prefix . does
+      # not contain modules listed in go.work". Expand the workspace to one pattern per module
+      # instead, which also means a new `use (...)` entry is covered without editing this file.
+      - run: go vet $(go list -m -f '{{.Dir}}/...')
+      - run: go test $(go list -m -f '{{.Dir}}/...')

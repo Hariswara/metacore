@@ -13,6 +13,11 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
       - run: pip install uv
-      - run: uv sync --all-packages
-      - run: uv run ruff check .
-      - run: uv run pytest services packages
+      # --all-groups: `--all-packages` syncs the workspace members but not the root's
+      # `dev` dependency-group, so ruff and pytest were never installed and the lane died on
+      # `Failed to spawn: ruff` the moment anything upstream of it stopped failing first.
+      - run: uv sync --all-packages --all-groups
+      # --no-sync: a bare `uv run` reshapes .venv to match its own flags, which drops the groups
+      # the sync above just installed.
+      - run: uv run --no-sync ruff check .
+      - run: uv run --no-sync pytest services packages
