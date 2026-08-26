@@ -7,6 +7,15 @@ description = "MetaCore monorepo — uv workspace root (J26-DS-317)"
 requires-python = ">=3.11"
 dependencies = []
 
+# Dev tooling is declared, not assumed. The CI lanes invoke ruff and pytest, and until now
+# nothing installed them: both are configured further down this file but were never declared as
+# dependencies, so `uv sync` produced an environment the workflow then failed to run in.
+[dependency-groups]
+dev = [
+  "pytest>=8.3",
+  "ruff>=0.14",
+]
+
 [tool.uv.workspace]
 members = [
   "services/gateway",
@@ -28,5 +37,8 @@ target-version = "py311"
 select = ["E", "F", "I", "B", "UP"]
 
 [tool.pytest.ini_options]
-addopts = "-q"
+# importlib import mode: seven services each ship a `tests/test_scaffold.py`, and the default
+# prepend mode derives module names from the basename, so they collide on collection. This fixes
+# it without scattering empty __init__.py files through every test directory.
+addopts = "-q --import-mode=importlib"
 testpaths = ["services", "deterministic-core", "packages"]
