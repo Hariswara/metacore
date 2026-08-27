@@ -12,8 +12,10 @@ dependencies = [
   # Pinned to a minor version, not >=2.4. Training here is seeded and bit-reproducible
   # in-process, but the reported metrics still moved between environments because the
   # torch version moved with them -- a floating major dependency is the reproducibility
-  # bug, not the seeding. Raise this deliberately and re-run run_demo.py when you do.
-  "torch>=2.11,<2.12",
+  # bug, not the seeding. 2.13 is what the workspace lock already resolved, so this pins
+  # the status quo rather than moving the other modules. Raise it deliberately and re-run
+  # run_demo.py, benchmark.py, bench_latency.py and export_onnx.py when you do.
+  "torch>=2.13,<2.14",
   "numpy>=2.0",
 ]
 
