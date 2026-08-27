@@ -49,24 +49,24 @@ prediction asks whether the uncertainty is *usable* as a decision to abstain.
 |---|---|
 | accuracy at full coverage | 0.945 |
 | accuracy at 50% coverage (reject highest `u`) | **1.000** |
-| accuracy at 75% coverage | 0.997 |
-| **AURC** | **0.0057** |
-| AURC with the ranking shuffled | 0.0498 |
+| accuracy at 75% coverage | 0.996 |
+| **AURC** | **0.0053** |
+| AURC with the ranking shuffled | 0.0551 |
 
 Rejecting the least-certain half of the states removes every error. The shuffled row is
-the control: a random ranking scores ~9× worse, so the result comes from `u` and not from
+the control: a random ranking scores ~10× worse, so the result comes from `u` and not from
 the data being easy.
 
 | Metric | Value | Target |
 |---|---|---|
 | ID 3-class accuracy | 0.945 | — |
-| value-only u (ID / OOD) | 0.067 / 1.000 | ID low, OOD high |
-| emitted u (ID / OOD), at nominal `observed_fraction` 0.4286 | 0.133 / 1.000 | ID low, OOD high |
-| emitted u (comms blackout) | 0.209 | rises although values are normal |
+| value-only u (ID / OOD) | 0.061 / 1.000 | ID low, OOD high |
+| emitted u (ID / OOD), at nominal `observed_fraction` 0.4286 | 0.124 / 1.000 | ID low, OOD high |
+| emitted u (comms blackout) | 0.193 | rises although values are normal |
 | AUROC (u, OOD vs ID) | 0.999 | ≥ 0.90 |
 | AUPR (OOD) | 0.999 | high |
 | FPR95 | 0.002 | low |
-| ECE (calibration) | 0.028 | near 0 |
+| ECE (calibration) | 0.029 | near 0 |
 
 Competence-drop trigger — two conditions, OR'd, with the reason it fired:
 
@@ -74,13 +74,13 @@ Competence-drop trigger — two conditions, OR'd, with the reason it fired:
 |---|---|---|
 | normal operation (`observed_fraction` 0.4286) | 0.050 | `none` 0.95, `value` 0.05 |
 | cyclone (value-OOD) | 1.000 | `value` 1.00 |
-| comms blackout (`observed_fraction` < 0.35) | 1.000 | `sensing` 0.94, `both` 0.06 |
+| comms blackout (`observed_fraction` < 0.35) | 1.000 | `sensing` 0.95, `both` 0.05 |
 
 Magnitude along the quality axis — the same in-distribution states, less of them observed:
 
 | `observed_fraction` | 1.00 | 0.75 | 0.50 | **0.4286** | 0.25 | 0.10 |
 |---|---|---|---|---|---|---|
-| mean u (in-distribution) | 0.067 | 0.085 | 0.118 | **0.133** | 0.199 | 0.356 |
+| mean u (in-distribution) | 0.061 | 0.078 | 0.109 | **0.124** | 0.187 | 0.343 |
 | mean u (cyclone) | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
 
 ### Why the trigger is not just a threshold on `u`
@@ -90,7 +90,7 @@ Ranking a mixed stream by the combined `u` and keeping the most-confident half:
 | | normal | cyclone | blackout |
 |---|---|---|---|
 | full stream | 0.385 | 0.308 | 0.308 |
-| kept half | 0.653 | **0.000** | **0.347** |
+| kept half | 0.654 | **0.000** | **0.346** |
 
 The magnitude clears the value axis completely and does **not** clear the sensing axis —
 a blackout at `observed_fraction` ~0.25 discounts a confident state into the same `u`
@@ -106,14 +106,14 @@ the uncertainty mechanism and nothing else.
 
 | method | AUROC | AUPR | FPR95 | ECE | ID acc | ms/sample |
 |---|---|---|---|---|---|---|
-| Softmax max-prob | 0.019 | 0.384 | 1.000 | 0.054 | 0.937 | 0.0004 |
-| MC-Dropout (T=20) | 0.000 | 0.265 | 1.000 | 0.019 | 0.940 | 0.0467 |
-| **EDL (ours)** | **0.999** | **0.999** | **0.001** | 0.025 | 0.933 | 0.0008 |
-| EDL, no OOD-reg (ablation) | 0.000 | 0.265 | 1.000 | 0.027 | 0.929 | 0.0009 |
+| Softmax max-prob | 0.015 | 0.392 | 1.000 | 0.053 | 0.935 | 0.0003 |
+| MC-Dropout (T=20) | 0.000 | 0.265 | 1.000 | 0.019 | 0.940 | 0.0334 |
+| **EDL (ours)** | **0.999** | **0.999** | **0.001** | 0.015 | 0.931 | 0.0005 |
+| EDL, no OOD-reg (ablation) | 0.000 | 0.265 | 1.000 | 0.019 | 0.933 | 0.0005 |
 
 Two findings, and the second is the contribution.
 
-**1. The baselines do not merely underperform — they invert.** An AUROC of 0.019 means the
+**1. The baselines do not merely underperform — they invert.** An AUROC of 0.015 means the
 score is *anti*-correlated with being out of distribution. Measured directly: the softmax
 network's max probability saturates at **1.0000 on essentially every cyclone state**, above
 its mean on normal ones. It is more certain about conditions it has never seen than
@@ -121,7 +121,7 @@ about the ones it was trained on. This is the documented behaviour of ReLU netwo
 from their training data (Hein et al., *Why ReLU networks yield high-confidence
 predictions far away from the training data*, CVPR 2019), not an artefact of this setup —
 which is why a better-tuned baseline would not rescue it. AUPR says the same thing: the
-positive base rate here is 0.444, and the failing methods sit at 0.265-0.384, below chance.
+positive base rate here is 0.444, and the failing methods sit at 0.265-0.392, below chance.
 
 **2. The OOD-aware regulariser is load-bearing, not the Dirichlet head.** The ablation is
 identical in every respect except `ood_reg = 0`, and it collapses to 0.000 — the same
@@ -129,12 +129,12 @@ failure as the softmax baseline. Evidential output on its own does not solve far
 tabular data; driving evidence → 0 on far proxy points is what does.
 
 Worth noting what the table does *not* say: the baselines rank in-distribution errors
-just as well as we do — softmax AURC **0.008** against our **0.009**, i.e. marginally
+just as well as we do — softmax AURC **0.007** against our **0.010**, i.e. marginally
 *better*. They fail specifically at recognising a state they have never seen, which is the
 one thing this module exists to do. Selective prediction and OOD detection are different
 questions, and that is exactly why the module needs both evaluations.
 
-MC-Dropout is both inverted and ~58× slower per sample, because its score costs T=20
+MC-Dropout is both inverted and ~67× slower per sample, because its score costs T=20
 forward passes. On a gate that runs per control step, that is the difference between
 viable and not.
 
@@ -154,18 +154,18 @@ python bench_latency.py   # writes latency_table.json
 
 | backend | mean ms | p50 ms | p99 ms | amortised ms/sample | optimism |
 |---|---|---|---|---|---|
-| torch-eager | 0.0973 | 0.0751 | 0.3098 | 0.0003 | **276×** |
-| ONNX Runtime | 0.0383 | **0.0355** | **0.0870** | n/a | — |
+| torch-eager | 0.0587 | 0.0624 | 0.0930 | 0.0002 | **391×** |
+| ONNX Runtime | 0.0217 | **0.0225** | **0.0367** | n/a | — |
 
 **Batch-1 is the only honest number here.** The gate scores one state per control step, so
 its cost is the latency of a single call. Dividing a batch-1000 forward pass by 1000 hides
 per-call dispatch and kernel launch completely and reports a figure the real path never
-sees — here it is **276× more optimistic** than what the gate actually pays. The
+sees — here it is **391× more optimistic** than what the gate actually pays. The
 `ms/sample` column in `comparison_table.json` is exactly that optimistic, and should be
 read as throughput, not latency.
 
-ONNX Runtime is 2.1× faster than torch-eager at batch-1 (p50 0.0355 ms vs 0.0751 ms) and
-cuts the tail by 3.6× (p99 0.0870 ms vs 0.3098 ms). The tail is the number that matters for a
+ONNX Runtime is 2.8× faster than torch-eager at batch-1 (p50 0.0225 ms vs 0.0624 ms) and
+cuts the tail by 2.5× (p99 0.0367 ms vs 0.0930 ms). The tail is the number that matters for a
 step deadline: a p99 that blows the budget is a missed step, not a slow one. Both backends
 are comfortably sub-millisecond, so uncertainty scoring is not what constrains the control
 loop — deliberation is, which is the premise M3's cost model rests on.
