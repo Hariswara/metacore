@@ -196,6 +196,91 @@ merely absent. The model card is committed, and records the verification result.
 observed_fraction)` → an `M2Output`. It runs the same two axes as the torch path and needs
 no torch at serving time.
 
+## Real data: the Eluvaitivu degradation (`python eluvaitivu_decay.py`)
+
+> **M2's uncertainty recovers the real Eluvaitivu degradation at the per-plant monthly
+> resolution where it is observable, and does not detect it in island-aggregate hourly
+> telemetry — empirical support for the project's per-asset-over-aggregate-telemetry
+> premise.**
+
+The episode is M1's `eluvaitivu-hybrid-decay-2025q4` (library version `1.0.0`,
+`out_of_distribution: true`): the Eluvaitivu hybrid plant falling to 0.70, 0.14 and 0.03
+of its own baseline across October, November and December 2025. The label used here is the
+real `ScenarioRef` from `data/processed/scenario_library.json`, not a mock id. Full output
+in [`results/eluvaitivu_decay.json`](results/eluvaitivu_decay.json).
+
+### A — island-aggregate hourly: **not detectable**
+
+| comparison | AUROC |
+|---|---|
+| naive: decay 2025 Q4 vs the nominal window (2024-03…05) | 0.852 |
+| **same-season control: decay 2025 Q4 vs 2024 Q4 (no decay)** | **0.500** |
+
+The naive figure reads as detection. Against the same three calendar months a year
+earlier it is exactly chance. **The 0.852 is October, not the collapse.** Per-month `u`
+makes it plain — the decay quarter is if anything *less* uncertain than the same quarter
+without a decay:
+
+| | Oct | Nov | Dec |
+|---|---|---|---|
+| 2024 (no decay) | 0.846 | 0.800 | 0.627 |
+| 2025 (decay) | 0.773 | 0.755 | 0.633 |
+
+Trained instead on a **complete seasonal cycle** (all of 2024, no decay), monthly `u`
+across 2025 is flat — Q1–Q3 mean 0.063 against Q4 mean 0.058. A model that has seen every
+season cannot mistake October for novelty, and nothing is left over.
+
+This is not a defect in the method. `island_load_hourly.csv` sums the Eluvaitivu diesel
+set and hybrid plant into one island demand — correct for dispatch and power flow, and it
+removes the event. M1's `module1/data/scenarios.py` says so directly: across the window the
+plant falls **73.4%** while island demand falls **10.3%**, a **7.1× attenuation**. The raw
+totals show it: 2025 Q4 island demand (16.6k / 15.7k / 15.6k kWh) is *higher* than 2024 Q4
+(15.2k / 13.7k / 16.2k) while the plant behind it had all but stopped.
+
+**Feature accounting for A.** Of the 28 pinned features, 15 are real or derived from real
+(four meteorology, five resource, load and its ramp, four temporal), 8 are static site
+constants (the topology block — one aggregate node, so `is_bus` and the rest zero), and 5
+are absent and zero-filled (the electrical block). The absent five are exactly what the pin
+already marks `QUALITY_MISSING`: there is no SCADA and no historian (ADR 0004).
+
+### B — per-plant monthly: **recovered**
+
+Same episode, at the resolution where it is observable: the reconciled per-plant monthly
+ledger (`ceb_generation_tidy.csv`, 120 plant-months). These rows are `QUALITY_OBSERVED` —
+meter readings, not downscaled estimates. Trained unsupervised on nominal plant-months;
+the OOD label never enters training.
+
+| | mean `u` |
+|---|---|
+| nominal plant-months (117) | 0.318 |
+| **decay months (3)** | **0.725** |
+
+AUROC 0.944 against held-out nominal, 0.966 against all nominal. Per-month `u`: Oct 0.468,
+Nov 0.970, Dec 0.739.
+
+Two caveats that belong with the number:
+
+- **Recovers, not discovers.** M1 derived the window by thresholding plant-relative energy
+  over these same monthly figures. An unsupervised method agreeing with it is evidence the
+  signal is real and strong, not an independent discovery. The check: **remove
+  `energy_rel`** — the rule's own input — and the fuel signature alone still separates
+  (mean `u` 0.309 nominal vs 0.719 decay, AUROC 0.667). Weaker, and that gap is the honest
+  measure of how much the headline owes to reading the rule's input back.
+- **The per-month detail is noise.** Which individual months clear the 95th percentile of
+  nominal moves with training length (2–3 of 3 across 200–400 epochs); the mean separation
+  and the AUROC do not. With one episode and three decay months, the aggregate is the
+  result.
+
+### n = 1
+
+**One real degradation episode.** The hour-level and month-level AUROCs have many points,
+but the number of independent events is **one**. This is a case study, not a distribution
+over failure modes, and anything reported as an OOD *detection rate* needs either simulated
+degradations layered on top of it or an explicit n=1 statement. The label window is monthly
+and evaluation A is hourly, so every hour of a flagged month inherits the flag; the
+within-month transition is unresolved — 2025-10 sits at 0.70 of baseline and the collapse
+continues through it — and nothing in the record resolves it.
+
 ## Figures (optional `viz` extra)
 
 Metrics are computed in NumPy and emitted as **data** — `run_demo.py` writes
@@ -223,6 +308,8 @@ python run_demo.py
 - `plots.py` — renders those tables (reliability diagram, risk-coverage curve). Needs the `viz` extra; imported by nothing else.
 - `baselines.py` — softmax max-prob, MC-Dropout, and the EDL / EDL-without-OOD-reg pair, on one architecture.
 - `benchmark.py` + `comparison_table.json` — full-scale comparison **script** (not run in CI) and the table it writes.
+- `real_data.py` — real Eluvaitivu states from M1's committed artifacts (hourly load + NASA weather), and the per-plant monthly ledger.
+- `eluvaitivu_decay.py` + `results/eluvaitivu_decay.json` — the real-data evaluation **script** and its output.
 - `export_onnx.py` + `edl.onnx` + `edl.onnx.json` — ONNX export **script**, the batch-1 artifact, and its model card (architecture, opset, normalisation statistics).
 - `infer.py` — the serving path M3 calls: ONNX evidence + uncertainty + trigger, no torch at inference.
 - `bench_latency.py` + `latency_table.json` — batch-1 p50/p99 **script** for torch-eager vs ONNX Runtime.

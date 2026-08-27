@@ -1,0 +1,178 @@
+{
+  "episode": {
+    "scenario_id": "eluvaitivu-hybrid-decay-2025q4",
+    "library_version": "1.0.0",
+    "out_of_distribution": true,
+    "plant": "Eluvaitivu-Hybrid",
+    "months": [
+      "2025-10",
+      "2025-11",
+      "2025-12"
+    ],
+    "monthly_ratio_of_baseline": {
+      "2025-10": 0.7016,
+      "2025-11": 0.1362,
+      "2025-12": 0.0324
+    }
+  },
+  "n_episodes": 1,
+  "n_statement": "One real degradation episode. The hour-level and month-level AUROCs have many points, but the number of independent events is ONE: this is a case study, not a distribution over failure modes. Any reported OOD detection rate needs either simulated degradations on top of this or an explicit n=1.",
+  "label_broadcast": "The library window is monthly; evaluation A is hourly, so every hour of a flagged month inherits the flag. The within-month transition is unresolved -- 2025-10 sits at 0.70 of baseline and the collapse continues through it -- and nothing in the record resolves it.",
+  "feature_accounting_experiment_a": {
+    "real_or_derived_from_real": [
+      "ghi_wh_m2_norm",
+      "clearsky_index",
+      "wind_10m_ms_norm",
+      "wind_50m_ms_norm",
+      "pv_available_kw_norm",
+      "temp_2m_c_norm",
+      "humidity_2m_pct_norm",
+      "precip_mm_hr_norm",
+      "pressure_kpa_norm",
+      "load_kw_norm",
+      "load_ramp_kw_per_h_norm",
+      "hour_sin",
+      "hour_cos",
+      "doy_sin",
+      "doy_cos"
+    ],
+    "static_site_constants": [
+      "nominal_kv_norm",
+      "critical_load",
+      "is_bus",
+      "is_pv",
+      "is_wind",
+      "is_bess",
+      "is_diesel",
+      "is_load"
+    ],
+    "absent_zero_filled": [
+      "p_kw_norm",
+      "q_kvar_norm",
+      "voltage_pu",
+      "soc_fraction",
+      "asset_online"
+    ],
+    "note": "The five absent features are the electrical block. There is no SCADA and no historian (ADR 0004), which is why the pinned schema already marks them QUALITY_MISSING."
+  },
+  "experiment_a_island_aggregate_hourly": {
+    "resolution": "island-aggregate hourly",
+    "verdict": "not detectable",
+    "train_window": "2024-03..2024-04",
+    "hours": {
+      "train": 1464,
+      "heldout_nominal": 744,
+      "decay": 2208,
+      "seasonal_control": 2208
+    },
+    "mean_u": {
+      "heldout_nominal_2024_05": 0.24939341843128204,
+      "seasonal_control_2024_q4": 0.7571196556091309,
+      "decay_2025_q4": 0.7202265858650208
+    },
+    "auroc_naive_decay_vs_nominal": 0.8518145161290323,
+    "auroc_vs_seasonal_control": 0.4999554895898971,
+    "aupr_vs_seasonal_control": 0.5308118462562561,
+    "per_month_mean_u": {
+      "2024-10": 0.8456288576126099,
+      "2024-11": 0.8004621863365173,
+      "2024-12": 0.626666247844696,
+      "2025-10": 0.7732818126678467,
+      "2025-11": 0.755095362663269,
+      "2025-12": 0.6334273815155029
+    },
+    "interpretation": "The naive comparison scores 0.852, which reads as detection. Against the same three calendar months a year earlier -- same season, no decay -- it is 0.500, i.e. chance. The naive figure is the season.",
+    "full_cycle": {
+      "train": "2024-01..2024-12 (a complete seasonal cycle, no decay)",
+      "monthly_mean_u_2025": {
+        "2025-01": 0.057883113622665405,
+        "2025-02": 0.052253127098083496,
+        "2025-03": 0.055870044976472855,
+        "2025-04": 0.0677066370844841,
+        "2025-05": 0.07705064862966537,
+        "2025-06": 0.07733549177646637,
+        "2025-07": 0.05728213116526604,
+        "2025-08": 0.05853184312582016,
+        "2025-09": 0.06545629352331161,
+        "2025-10": 0.05816343426704407,
+        "2025-11": 0.05965031683444977,
+        "2025-12": 0.05678825080394745
+      },
+      "mean_u_2025_q1_q3": 0.06326325900024837,
+      "mean_u_2025_q4": 0.05820066730181376,
+      "note": "Flat across all twelve months. The decay quarter is not elevated, and island demand in 2025 Q4 is higher than in 2024 Q4 while the plant behind it had all but stopped."
+    }
+  },
+  "experiment_b_per_plant_monthly": {
+    "resolution": "per-plant monthly",
+    "verdict": "recovered",
+    "features": [
+      "energy_rel",
+      "diesel_rel",
+      "sfc_l_per_kwh",
+      "fuel_cost_rs_per_kwh",
+      "month_sin",
+      "month_cos"
+    ],
+    "plant_months": {
+      "nominal_train": 87,
+      "nominal_heldout": 30,
+      "decay": 3
+    },
+    "mean_u": {
+      "nominal_all": 0.31835293769836426,
+      "nominal_heldout": 0.3282404839992523,
+      "decay_2025_q4": 0.7254016995429993
+    },
+    "per_month_u": {
+      "2025-10": 0.4675101041793823,
+      "2025-11": 0.9698692560195923,
+      "2025-12": 0.7388259172439575
+    },
+    "flagged_at_95th_percentile_of_nominal": {
+      "2025-10": false,
+      "2025-11": true,
+      "2025-12": true
+    },
+    "nominal_95th_percentile_u": 0.53302001953125,
+    "auroc_decay_vs_nominal_heldout": 0.9444444444444444,
+    "auroc_decay_vs_all_nominal": 0.9658119658119658,
+    "per_month_stability": "Which individual months clear the band moves with training length (2-3 of 3 across 200-400 epochs); the mean separation and the AUROC do not. With one episode, three decay months and 117 nominal plant-months, the per-month detail is noise and the aggregate is the result."
+  },
+  "experiment_b_without_energy_feature": {
+    "resolution": "per-plant monthly",
+    "verdict": "recovered",
+    "features": [
+      "diesel_rel",
+      "sfc_l_per_kwh",
+      "fuel_cost_rs_per_kwh",
+      "month_sin",
+      "month_cos"
+    ],
+    "plant_months": {
+      "nominal_train": 87,
+      "nominal_heldout": 30,
+      "decay": 3
+    },
+    "mean_u": {
+      "nominal_all": 0.30878543853759766,
+      "nominal_heldout": 0.25188305974006653,
+      "decay_2025_q4": 0.719394862651825
+    },
+    "per_month_u": {
+      "2025-10": 0.16084392368793488,
+      "2025-11": 0.9974222183227539,
+      "2025-12": 0.9999184012413025
+    },
+    "flagged_at_95th_percentile_of_nominal": {
+      "2025-10": false,
+      "2025-11": true,
+      "2025-12": true
+    },
+    "nominal_95th_percentile_u": 0.5376183390617371,
+    "auroc_decay_vs_nominal_heldout": 0.6666666666666666,
+    "auroc_decay_vs_all_nominal": 0.6695156695156695,
+    "per_month_stability": "Which individual months clear the band moves with training length (2-3 of 3 across 200-400 epochs); the mean separation and the AUROC do not. With one episode, three decay months and 117 nominal plant-months, the per-month detail is noise and the aggregate is the result."
+  },
+  "headline": "M2's uncertainty recovers the real Eluvaitivu degradation at the per-plant monthly resolution where it is observable, and does not detect it in island-aggregate hourly telemetry -- empirical support for the project's per-asset-over-aggregate-telemetry premise."
+}
