@@ -10,6 +10,7 @@ dependencies = [
   "gymnasium>=1.0",
   "onnx>=1.17",
   "numpy>=2.0",
+  "pyyaml>=6.0",
 ]
 
 [build-system]
