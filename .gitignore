@@ -27,6 +27,11 @@ data/processed/**
 data/external/**
 !data/**/.gitkeep
 !data/**/README.md
+# The published calibration artifacts are git-tracked; data/.gitignore names them individually.
+!data/processed/*.csv
+!data/processed/*.json
+!data/raw/nasa_power/*.csv
+!data/raw/nasa_power/*.json
 *.dvc.lock
 
 # Models & artefacts
@@ -58,3 +63,6 @@ Thumbs.db
 
 # Notebooks
 .ipynb_checkpoints/
+
+# Synthetic stand-in inputs (task data:synthetic). Never the real artifacts.
+/.synthetic/

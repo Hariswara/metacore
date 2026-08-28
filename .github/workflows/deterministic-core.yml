@@ -24,6 +24,10 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
       - run: pip install uv
-      # --isolated: the core is resolved on its own, never against the learned workspace
-      - run: uv run --isolated --directory deterministic-core/module4_verification pytest -q
-      - run: uv run --isolated --directory deterministic-core/module4_semantic_translation pytest -q
+      # --isolated: the core is resolved on its own, never against the learned workspace.
+      # --with pytest: neither module4 package declares a test runner, and --directory pins
+      # resolution to the package, so uv never reaches the root workspace's dev group the way a
+      # local `task test:core` does. Supplying the runner here keeps the test dependency out of
+      # the core's own manifest, which ADR 0003 wants kept minimal and ML-free.
+      - run: uv run --isolated --with pytest --directory deterministic-core/module4_verification pytest -q
+      - run: uv run --isolated --with pytest --directory deterministic-core/module4_semantic_translation pytest -q

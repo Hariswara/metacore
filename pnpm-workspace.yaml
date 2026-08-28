@@ -1,3 +1,17 @@
 packages:
   - "apps/*"
   - "packages/ts_common"
+
+# pnpm 11 refuses to finish an install that silently skipped a postinstall script, and exits with
+# ERR_PNPM_IGNORED_BUILDS. Three packages need theirs: `@bufbuild/buf` and `@go-task/cli` unpack a
+# platform binary into node_modules/.bin, and esbuild (via vite, in apps/dashboard) fetches its
+# native binary the same way. Without this, `pnpm install` fails outright on a fresh clone and in
+# CI, and `task proto` and `pnpm dev` fail with no obvious cause.
+allowBuilds:
+  '@bufbuild/buf': true
+  '@go-task/cli': true
+  esbuild: true
+
+# Added by pnpm: @go-task/cli 3.53.1 is newer than the default minimum-release-age gate.
+minimumReleaseAgeExclude:
+  - '@go-task/cli@3.53.1'

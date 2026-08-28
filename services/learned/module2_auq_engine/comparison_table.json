@@ -1,0 +1,52 @@
+{
+  "config": {
+    "seed": 0,
+    "epochs": 300,
+    "n_train": 3000,
+    "n_id_test": 1000,
+    "n_ood": 800,
+    "mc_passes": 20
+  },
+  "rows": [
+    {
+      "method": "Softmax max-prob",
+      "auroc": 0.0155,
+      "aupr": 0.3916,
+      "fpr95": 1.0,
+      "ece": 0.0528,
+      "aurc": 0.0075,
+      "id_accuracy": 0.935,
+      "ms_per_sample": 0.000305
+    },
+    {
+      "method": "MC-Dropout (T=20)",
+      "auroc": 0.0,
+      "aupr": 0.2653,
+      "fpr95": 1.0,
+      "ece": 0.019,
+      "aurc": 0.0132,
+      "id_accuracy": 0.94,
+      "ms_per_sample": 0.033429
+    },
+    {
+      "method": "EDL (ours)",
+      "auroc": 0.9994,
+      "aupr": 0.9987,
+      "fpr95": 0.001,
+      "ece": 0.0147,
+      "aurc": 0.0098,
+      "id_accuracy": 0.931,
+      "ms_per_sample": 0.000494
+    },
+    {
+      "method": "EDL, no OOD-reg (ablation)",
+      "auroc": 0.0,
+      "aupr": 0.2653,
+      "fpr95": 1.0,
+      "ece": 0.0188,
+      "aurc": 0.0088,
+      "id_accuracy": 0.933,
+      "ms_per_sample": 0.000493
+    }
+  ]
+}
