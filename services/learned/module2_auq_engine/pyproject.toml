@@ -5,10 +5,34 @@ description = "Module 2 — Agentic Epistemic Uncertainty Quantification (Duwara
 requires-python = ">=3.11"
 dependencies = [
   "grpcio>=1.66",
+  # The pinned M1 state contract: feature names, order, embedding width, per-feature
+  # quality. Imported rather than copied so the mock cannot drift from the real schema.
+  "metacore-contracts",
   "pydantic>=2.9",
-  "torch>=2.4",
+  # Pinned to a minor version, not >=2.4. Training here is seeded and bit-reproducible
+  # in-process, but the reported metrics still moved between environments because the
+  # torch version moved with them -- a floating major dependency is the reproducibility
+  # bug, not the seeding. 2.13 is what the workspace lock already resolved, so this pins
+  # the status quo rather than moving the other modules. Raise it deliberately and re-run
+  # run_demo.py, benchmark.py, bench_latency.py and export_onnx.py when you do.
+  "torch>=2.13,<2.14",
   "numpy>=2.0",
 ]
+
+# Plotting only. The metrics themselves are NumPy and are computed and asserted without
+# it, so the test lane never installs a plotting stack:
+#   uv sync --package metacore-module2 --extra viz
+[project.optional-dependencies]
+viz = ["matplotlib>=3.7"]
+# Export and serving only. The core install and the default test lane must not pull these;
+# tests/test_onnx.py skips cleanly when onnxruntime is absent:
+#   uv sync --package metacore-module2 --extra onnx
+onnx = ["onnx>=1.16", "onnxruntime>=1.18", "onnxscript>=0.1"]
+
+# metacore-contracts is a workspace member, not a PyPI package. Declared here rather than
+# in the root pyproject so adding it does not touch a shared file.
+[tool.uv.sources]
+metacore-contracts = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
