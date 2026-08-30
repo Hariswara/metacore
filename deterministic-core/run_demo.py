@@ -18,6 +18,8 @@ from translation.types import (
 )
 from verification.firewall.verifier import PhysicsVerifier
 
+CORE_DIR = Path(__file__).resolve().parent
+
 SAMPLE_EPISODES = [
     {
         "description": "1. Nominal System 1 reactive load shed (Safe)",
@@ -104,7 +106,7 @@ def run_demo() -> None:
     print("=" * 80)
 
     verifier = PhysicsVerifier()
-    output_records = []
+    golden_records = []
 
     for ep in SAMPLE_EPISODES:
         print(f"\n--- Episode: {ep['description']} ---")
@@ -143,31 +145,31 @@ def run_demo() -> None:
                 )
 
         # 4. Grounded Causal Log (to Operator Dashboard)
-        causal_log = TemplateCausalLogger.generate_log(verdict)
-        print(f'Causal Log: "{causal_log.text}"')
-        if causal_log.grounded_entities:
-            print(f"Grounded Entities: {causal_log.grounded_entities}")
+        causal_log_live = TemplateCausalLogger.generate_log(verdict, include_latency=True)
+        print(f'Causal Log: "{causal_log_live.text}"')
+        if causal_log_live.grounded_entities:
+            print(f"Grounded Entities: {causal_log_live.grounded_entities}")
 
-        # Save to JSONL bundle
-        output_records.append(
+        # Deterministic golden output (reproducible across all test environments)
+        causal_log_golden = TemplateCausalLogger.generate_log(verdict, include_latency=False)
+        golden_records.append(
             {
                 "action_id": action.action_id,
                 "decision": verdict.decision.value,
-                "solve_latency_ms": verdict.solve_latency_ms,
                 "violations": [v.model_dump() for v in verdict.violations],
                 "rejection_severity": rejection_trace.severity,
-                "causal_log": causal_log.model_dump(),
+                "causal_log": causal_log_golden.model_dump(),
             }
         )
 
-    # Write output artifact
-    out_path = Path(__file__).parent / "sample_m4_output.jsonl"
+    # Write deterministic golden output artifact
+    out_path = CORE_DIR / "sample_m4_output.jsonl"
     with open(out_path, "w", encoding="utf-8") as f:
-        for rec in output_records:
+        for rec in golden_records:
             f.write(json.dumps(rec) + "\n")
 
     print("\n" + "=" * 80)
-    print(f"Demo complete. Published {len(output_records)} verified records to:")
+    print(f"Demo complete. Published {len(golden_records)} deterministic records to:")
     print(f"  {out_path}")
     print("=" * 80)
 

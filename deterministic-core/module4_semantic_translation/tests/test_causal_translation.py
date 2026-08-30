@@ -41,10 +41,10 @@ def test_grounded_causal_log_generation() -> None:
         ),
     ]
 
-    # 2. Run Abductive Attribution
+    # 2. Run Abductive Attribution - N8 matches dispatch.N8 by exact equality
     attributed_violations = AbductiveAttributor.attribute_violations(action, raw_violations)
     assert len(attributed_violations) == 2
-    assert "breaker.Line_2_3" in attributed_violations[0].attributed_component
+    assert attributed_violations[0].attributed_component == "dispatch.N8"
 
     # 3. Generate Grounded Causal Log
     verdict = VerificationVerdict(
@@ -54,18 +54,43 @@ def test_grounded_causal_log_generation() -> None:
         solve_latency_ms=0.45,
     )
 
-    causal_log: CausalLog = TemplateCausalLogger.generate_log(verdict)
+    causal_log: CausalLog = TemplateCausalLogger.generate_log(verdict, include_latency=False)
 
     # Invariant: Log text must mention the elements and the attributed cause
     assert "N8" in causal_log.text
     assert "LINE_SOURCE_N1" in causal_log.text
     assert "Undervoltage" in causal_log.text
     assert "Thermal overload" in causal_log.text
+    assert "dispatch.N8" in causal_log.text
 
-    # Strict Grounding Invariant: grounded_entities MUST be a subset of violation element_ids
+    # Strict Grounding Invariant: Every element in grounded_entities must be in the log text
+    # AND must be a subset of violation element_ids
     violation_elements = {v.element_id for v in verdict.violations}
     for entity in causal_log.grounded_entities:
-        assert entity in violation_elements, f"Entity {entity} not grounded in violation elements!"
+        assert entity in violation_elements, f"Entity {entity} not in violation elements!"
+        assert entity in causal_log.text, f"Grounded entity {entity} missing from log text!"
+
+
+def test_non_convergence_grounding() -> None:
+    verdict = VerificationVerdict(
+        action_id="act-nonconv-001",
+        decision=Decision.DECISION_REJECT,
+        violations=[
+            Violation(
+                type=ViolationType.VIOLATION_TYPE_NON_CONVERGENCE,
+                element_id="GLOBAL_CIRCUIT",
+                limit=1.0,
+                measured=0.0,
+                margin_fraction=-1.0,
+                attributed_component="powerflow_solver",
+            )
+        ],
+        solve_latency_ms=0.0,
+    )
+
+    causal_log = TemplateCausalLogger.generate_log(verdict, include_latency=False)
+    assert "GLOBAL_CIRCUIT" in causal_log.grounded_entities
+    assert "failed to converge" in causal_log.text
 
 
 def test_approved_action_causal_log() -> None:
