@@ -3,7 +3,7 @@
 A runnable, self-contained **training** starter for **Module 3** (Saabir S., J26-DS-317).
 It learns a cost-aware gate over `{M2 uncertainty, M1 hazard context}` that chooses
 **System 1** (cheap reactive rules) vs **System 2** (deliberative survival path),
-reports reward against always-S1 / always-S2 baselines, and checks that escalation
+reports reward against always-S1 / always-S2 / **u-threshold** baselines, and checks that escalation
 rate is monotonically non-decreasing across hazard severity — the core thesis of
 the module — with **zero dependency on a live M1 or M4 service**. Drop-in location:
 `services/learned/module3_metapolicy/`.
@@ -16,16 +16,14 @@ the module — with **zero dependency on a live M1 or M4 service**. Drop-in loca
 |---|---|---|
 | total reward always-S1 | -107.750 | baseline |
 | total reward always-S2 | -99.329 | baseline |
-| total reward trained policy | **117.976** | beat both baselines |
-| avg deliberation cost (S2 / policy) | 0.056 / 0.049 | policy ≤ always-S2 |
+| total reward u>0.40 threshold | (printed by `run_demo.py`) | the "why not just a threshold?" baseline |
+| total reward trained policy | **117.976** | beat all three baselines |
+| avg deliberation cost (S2 / threshold / policy) | 0.056 / (run) / 0.049 | policy ≤ always-S2 |
 | escalation rate normal→…→extreme (excl. sensing) | 0.000 / 0.261 / 1.000 / 1.000 | non-decreasing |
 | escalation by `trigger_reason` none/value/sensing/both | 0.000 / 1.000 / **0.000** / 1.000 | sensing → S1 |
 | monotonic non-decreasing | True | `True` |
 
-Run-to-run numbers wobble a little (`mock_verify`'s reject roll hashes on action
-content, and hash randomization isn't seeded) — the pattern above (policy beats both
-baselines, escalation non-decreasing, sensing pinned to 0) is what to check, not the
-exact decimals.
+Headline numbers are process-stable: `mock_verify` uses SHA-256 (not salted `hash()`), and the sample `action_id` / `timestamp` are derived from seed + emit index. Re-run `python run_demo.py` to refresh the exact decimals after a config change; the pattern (policy beats all three baselines, escalation non-decreasing, sensing pinned to 0) is what to check.
 
 ## Run — from the terminal
 ```bash
@@ -101,13 +99,14 @@ in the observation vector. Escalating on `sensing` is explicitly penalised in th
 - `priority.py` — shared node priority-tier map (`system1.py` and `system2.py` both need it).
 - `verifier.py` — `mock_verify`, the M4 stand-in (neither S1 nor S2).
 - `gating_env.py` — Gymnasium env: **12-d** obs (includes reason flags + `observed_fraction`), Discrete(2), budget-forced S1.
-- `policy.py` — small MLP + vanilla REINFORCE.
-- `evaluate.py` — baselines, escalation-by-severity, escalation-by-`trigger_reason`.
+- `policy.py` — small MLP + REINFORCE with per-trajectory return standardization (no moving-average baseline).
+- `m3_evaluate.py` — always-S1 / always-S2 / **u-threshold** baselines, escalation-by-severity, escalation-by-`trigger_reason`.
 - `run_demo.py` — BC warm-start (cause-aware heuristic) → REINFORCE → `sample_m3_to_m4.jsonl`
   (or, given `config_path`/`output_json_path` args, a structured JSON result instead —
   see "Run — from the dashboard").
 - `M3_TO_M4_CONTRACT.md` — mock stream for Hariswara.
-- `config.yaml` — episode length, budget, reward weights (incl. `sensing_escalation_penalty`).
+- `config.yaml` — episode length, budget, reward weights (incl. `sensing_escalation_penalty` and the 0.35 / 0.5 / 0.25 floors).
+- `../../../docs/module3-explained.html` — **generated explainer** for the viva; not a source of truth (code + this README are).
 - `../../gateway/gateway/routers/module3.py` — `POST /api/module3/run`; drives `run_demo.py`
   as a subprocess for the dashboard.
 - `../../../apps/dashboard/src/routes/gating/` — the `/gating` page: run-config form +
@@ -118,7 +117,8 @@ in the observation vector. Escalating on `sensing` is explicitly penalised in th
    forces System 1 and sets `budget_exhausted_fallback=true`.
 2. **`trigger_reason` is a cleaner reward signal than `competence_drop` alone.** A value
    drop and a sensing drop are different problems; treating them the same wastes
-   deliberation budget on blackouts.
+   deliberation budget on blackouts. The `u > trigger_threshold` baseline is in the
+   results table specifically so that claim can be scored, not asserted.
 
 ## What is mocked vs real
 - **Mock now:** M1 `SystemContext`, M4 verdicts, simplified S1/S2 controllers.

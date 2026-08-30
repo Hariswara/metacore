@@ -1,14 +1,14 @@
 """Policy / escalation monotonicity and cause-aware heuristic tests."""
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import torch
 import yaml
-from pathlib import Path
-
-from gating_env import GatingEnv, OBS_DIM
-from policy import MLPPolicy
-from evaluate import escalation_rate_by_severity
+from gating_env import OBS_DIM, GatingEnv
+from m3_evaluate import escalation_rate_by_severity, threshold_action
+from policy import MLPPolicy, reinforce_update
 from synthetic_context import HAZARD_STAGES
 
 
@@ -75,3 +75,31 @@ def test_policy_forward_shape():
     assert logits.shape == (1, 2)
     probs = p.action_probs(x)
     assert abs(float(probs.sum().detach()) - 1.0) < 1e-5
+
+
+def test_threshold_baseline_is_naive_u_rule():
+    """u > 0.40 escalates even on sensing — that's why the learned gate exists."""
+    obs = np.zeros(OBS_DIM, dtype=np.float32)
+    obs[0] = 0.53
+    obs[2] = 1.0  # sensing-only
+    obs[8] = 0.67
+    assert threshold_action(obs, 0.40) == 1
+    assert _cause_aware_rule(obs) == 0
+    obs[0] = 0.20
+    assert threshold_action(obs, 0.40) == 0
+
+
+def test_reinforce_update_uses_standardized_advantage():
+    torch.manual_seed(0)
+    p = MLPPolicy(d_in=OBS_DIM)
+    opt = torch.optim.Adam(p.parameters(), lr=0.01)
+    obs = torch.zeros(1, OBS_DIM)
+    log_probs = []
+    for _ in range(4):
+        dist = torch.distributions.Categorical(logits=p(obs))
+        log_probs.append(dist.log_prob(dist.sample()))
+    loss, mean_r = reinforce_update(
+        p, opt, [{"log_probs": log_probs, "rewards": [1.0, 0.0, -1.0, 0.5]}]
+    )
+    assert torch.isfinite(torch.tensor(loss))
+    assert isinstance(mean_r, float)

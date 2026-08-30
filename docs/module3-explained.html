@@ -166,13 +166,23 @@
 </nav>
 
 <header class="page">
-  <div class="eyebrow">services/learned/module3_metapolicy · standing explainer, not a contract</div>
+  <div class="eyebrow">GENERATED EXPLAINER · not a source of truth · code + README are canonical</div>
   <h1>What Module 3 actually does, file by file</h1>
   <p>
     The dashboard form is not the M2 signal. The gate is not System 2. System 2 is not the
     meta-RL. Reward in the live pipeline belongs after M4, not inside a mock verifier.
     This page is the correction pass over those mix-ups, against the committed code.
   </p>
+  <div class="callout argue" style="margin-top:16px">
+    <span class="tag">generated · do not cite</span>
+    <p>
+      This HTML was generated as a standing explainer for the viva. It is <strong>not</strong>
+      a contract, not a spec, and not the source of truth. If it disagrees with
+      <span class="mono">services/learned/module3_metapolicy</span> (especially
+      <span class="mono">README.md</span>, <span class="mono">gating_env.py</span>, and
+      <span class="mono">M3_TO_M4_CONTRACT.md</span>), the code wins.
+    </p>
+  </div>
 </header>
 
 <section id="clocks">
@@ -551,10 +561,9 @@
     θ ← θ + α · Ĝ · ∇θ log πθ(aₜ | sₜ)
   </div>
   <p style="margin:10px 0 0; color:var(--dim); font-size:12.5px;">
-    Honest code note: a moving-average baseline is computed and returned, but the loss uses
-    <span class="mono">(R − 0.0)</span> after standardising. The “baseline” you see printed during
-    training is a running mean of returns, not the advantage subtractor. Standardising inside
-    the episode is doing the variance-reduction job instead.
+    Variance reduction is per-trajectory return standardisation — there is no moving-average
+    baseline in the advantage. Training prints <span class="mono">mean_R</span> as a diagnostic
+    only; it does not enter the gradient.
   </p>
 
   <h3 style="margin-top:22px">The if/else it was cloned from — not the live rule</h3>
@@ -705,13 +714,14 @@
 <section id="eval">
   <h2>Who does the evaluation</h2>
   <p style="margin:0 0 12px; color:var(--muted); font-size:14px; max-width:72ch;">
-    Not M4. Not the dashboard. <span class="mono">evaluate.py</span>, called at the end of
+    Not M4. Not the dashboard. <span class="mono">m3_evaluate.py</span>, called at the end of
     <span class="mono">run_demo.py</span>, after training freezes.
   </p>
   <ol class="fn">
     <li><strong>always-S1 baseline</strong> — every step action=0. A dumb “never think” policy.</li>
     <li><strong>always-S2 baseline</strong> — every step action=1, until the budget wall forces S1. A dumb “always think” policy.</li>
-    <li><strong>trained policy</strong> — greedy argmax of the net. Must beat both on total reward, and spend ≤ always-S2 on average deliberation cost.</li>
+    <li><strong>u-threshold baseline</strong> — escalate iff u &gt; trigger_threshold (0.40). Ignores trigger_reason, so it deliberates on blackouts. The “why not just a threshold?” comparison.</li>
+    <li><strong>trained policy</strong> — greedy argmax of the net. Must beat all three on total reward, and spend ≤ always-S2 on average deliberation cost.</li>
     <li><strong>escalation by severity</strong> — fraction of steps that ran S2, sensing-only dropped so blackouts don’t break the curve. Thesis check: normal ≤ elevated ≤ severe ≤ extreme.</li>
     <li><strong>escalation by trigger_reason</strong> — sensing should sit at 0; value/both should be high.</li>
   </ol>
@@ -734,7 +744,7 @@
     <tr><td class="file">m2_stream.py</td><td>Load + resample Duwaragie’s JSONL.</td><td>no — M2 trained that data</td></tr>
     <tr><td class="file">gating_env.py</td><td>Gym MDP that zips the two streams, calls S1/S2, scores r.</td><td>no</td></tr>
     <tr><td class="file">run_demo.py</td><td>Warm-start, train, evaluate, write the sample / dashboard JSON.</td><td>drives the learning</td></tr>
-    <tr><td class="file">evaluate.py</td><td>Baselines and the two escalation tables.</td><td>no</td></tr>
+    <tr><td class="file">m3_evaluate.py</td><td>always-S1 / always-S2 / u-threshold baselines and the two escalation tables.</td><td>no</td></tr>
     <tr><td class="file">verifier.py</td><td>Fake M4 for training reward only. Not a controller. Not the live path.</td><td>no — delete when M4 is live, not before</td></tr>
     <tr><td class="file">config.yaml</td><td>The knobs the dashboard form overrides.</td><td>—</td></tr>
     <tr><td class="file">sample_m2_to_m3.jsonl</td><td>Vendored M2 mock. Keep in sync with module2_auq_engine.</td><td>—</td></tr>

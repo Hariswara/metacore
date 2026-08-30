@@ -3,6 +3,14 @@ verification service is live. Not a control path: neither System 1 nor System 2.
 """
 from __future__ import annotations
 
+import hashlib
+
+
+def _stable_unit(seed_key: tuple) -> float:
+    """Process-stable unit interval. Built-in ``hash()`` is salted per process."""
+    digest = hashlib.sha256(repr(seed_key).encode("utf-8")).digest()
+    return (int.from_bytes(digest[:8], "big") % 1000) / 1000.0
+
 
 def mock_verify(action: dict, obs_raw: dict) -> dict:
     """Stand-in M4: APPROVE / REJECT with structured-ish violations.
@@ -28,16 +36,16 @@ def mock_verify(action: dict, obs_raw: dict) -> dict:
     if origin == "SYSTEM2":
         p_reject *= 0.4  # deliberation reduces rejection risk
 
-    # Deterministic-ish hash from action content (no rng needed for reproducibility
-    # across identical actions); callers that need stochasticity pass via obs.
     seed_key = (
         origin,
         severity,
-        tuple((c.get("node_id"), round(float(c.get("shed_fraction", 0)), 3))
-              for c in (action.get("load_shed") or [])),
+        tuple(
+            (c.get("node_id"), round(float(c.get("shed_fraction", 0)), 3))
+            for c in (action.get("load_shed") or [])
+        ),
         round(float(obs_raw.get("max_node_vulnerability", 0)), 3),
     )
-    h = abs(hash(seed_key)) % 1000 / 1000.0
+    h = _stable_unit(seed_key)
     if h < p_reject:
         violations = []
         if shed_critical:

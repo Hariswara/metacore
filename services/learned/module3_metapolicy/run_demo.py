@@ -1,6 +1,6 @@
 """End-to-end Module 3 prototype on the published M2 mock stream + synthetic M1 context.
-Trains a REINFORCE gating policy -> reports reward vs always-S1 / always-S2 ->
-checks escalation monotonicity by severity -> emits sample M3->M4 messages.
+Trains a REINFORCE gating policy -> reports reward vs always-S1 / always-S2 /
+u-threshold -> checks escalation monotonicity by severity -> emits sample M3->M4 messages.
 
 Usage: python run_demo.py [config_path] [output_json_path]
 Both args are optional and backward-compatible: with neither, behaviour is unchanged
@@ -13,23 +13,19 @@ from __future__ import annotations
 import json
 import random
 import sys
-import time
-import uuid
 
 import numpy as np
 import torch
 import yaml
-
-from gating_env import GatingEnv
-from policy import MLPPolicy, reinforce_update
-from gating_env import OBS_DIM
-from evaluate import (
-    run_baseline,
+from gating_env import OBS_DIM, GatingEnv
+from m3_evaluate import (
     avg_deliberation_cost,
     escalation_rate_by_severity,
     escalation_rate_by_trigger_reason,
     is_nondecreasing,
+    run_baseline,
 )
+from policy import MLPPolicy, reinforce_update
 
 config_path = sys.argv[1] if len(sys.argv) > 1 else "config.yaml"
 output_json_path = sys.argv[2] if len(sys.argv) > 2 else None
@@ -49,8 +45,6 @@ with torch.no_grad():
     policy.net[-1].bias[0] = 0.4
     policy.net[-1].bias[1] = -0.4
 opt = torch.optim.Adam(policy.parameters(), lr=cfg["train"]["lr"])
-baseline = 0.0
-momentum = float(cfg["train"]["baseline_momentum"])
 batch_n = int(cfg["train"]["batch_episodes"])
 n_train = int(cfg["train"]["episodes"])
 
@@ -82,7 +76,7 @@ def heuristic_action(obs_np: np.ndarray) -> int:
 bc_epochs = 40
 bc_loss_fn = torch.nn.CrossEntropyLoss()
 print(f"  warm-start BC ({bc_epochs} episodes) ...")
-for ep in range(bc_epochs):
+for _ in range(bc_epochs):
     obs, _ = env.reset()
     while True:
         target = heuristic_action(obs)
@@ -112,13 +106,13 @@ for ep in range(n_train):
             break
     trajectories.append({"log_probs": log_probs, "rewards": rewards})
     if len(trajectories) >= batch_n:
-        loss, baseline = reinforce_update(policy, opt, trajectories, baseline, momentum)
+        loss, mean_r = reinforce_update(policy, opt, trajectories)
         trajectories = []
         if (ep + 1) % 25 == 0:
-            print(f"  episode {ep+1:4d}/{n_train}  loss={loss:.4f}  baseline={baseline:.3f}")
+            print(f"  episode {ep+1:4d}/{n_train}  loss={loss:.4f}  mean_R={mean_r:.3f}")
 
 if trajectories:
-    loss, baseline = reinforce_update(policy, opt, trajectories, baseline, momentum)
+    loss, mean_r = reinforce_update(policy, opt, trajectories)
 
 # --- evaluation ---
 n_eval = int(cfg["eval"]["n_episodes"])
@@ -128,14 +122,19 @@ print("=" * 56)
 
 r_s1 = run_baseline(env, "always_s1", n_episodes=n_eval)
 r_s2 = run_baseline(env, "always_s2", n_episodes=n_eval)
+r_thr = run_baseline(env, "threshold", n_episodes=n_eval)
 r_pol = run_baseline(env, "policy", policy=policy, n_episodes=n_eval)
 c_pol = avg_deliberation_cost(env, "policy", policy=policy, n_episodes=n_eval)
 c_s2 = avg_deliberation_cost(env, "always_s2", n_episodes=n_eval)
+c_thr = avg_deliberation_cost(env, "threshold", n_episodes=n_eval)
+thr = float(cfg["reward"]["trigger_threshold"])
 
 print(f"total reward  always-S1           : {r_s1:.3f}")
 print(f"total reward  always-S2           : {r_s2:.3f}")
-print(f"total reward  trained policy      : {r_pol:.3f}   (target: beat both baselines)")
+print(f"total reward  u>{thr:.2f} threshold     : {r_thr:.3f}")
+print(f"total reward  trained policy      : {r_pol:.3f}   (target: beat all baselines)")
 print(f"avg deliber. cost  always-S2      : {c_s2:.3f}")
+print(f"avg deliber. cost  u-threshold    : {c_thr:.3f}")
 print(f"avg deliber. cost  trained policy : {c_pol:.3f}")
 
 rates = escalation_rate_by_severity(policy, env, n_episodes=n_eval)
@@ -160,13 +159,14 @@ records = []
 # so a viewer can see the M2 input (u, trigger_reason, severity, observed_fraction) and
 # M4-mock verdict that produced each action, alongside the proposed load_shed/dispatch.
 context = []
+emitted = 0
 while True:
     obs_t = torch.tensor(obs, dtype=torch.float32).unsqueeze(0)
     with torch.no_grad():
         action = int(torch.argmax(policy(obs_t), dim=-1).item())
     obs, reward, terminated, truncated, info = env.step(action)
     sev = info["severity"]
-    action_id = str(uuid.uuid4())
+    action_id = f"m3-{int(cfg['seed']):04d}-{emitted:02d}-{sev}"
     proposed = info["proposed"]
     eff = int(info["effective_action"])
     origin = "SYSTEM2" if eff == 1 else "SYSTEM1"
@@ -190,7 +190,7 @@ while True:
         "budget_exhausted_fallback": bool(info["budget_exhausted_fallback"]),
         "schema_version": "m3-out/0.1",
         "message_type": "GatingDecision",
-        "timestamp": time.time(),
+        "timestamp": 1_704_067_200.0 + float(emitted),
     }
     if sev not in by_sev:
         by_sev[sev] = (pca, gd)
@@ -206,14 +206,24 @@ while True:
             "verdict": info["verdict"]["decision"],
             "violations": info["verdict"]["violations"],
         })
+        emitted += 1
         print(json.dumps(gd))
     if terminated or truncated:
         break
 
 if output_json_path:
     result = {
-        "reward": {"always_s1": r_s1, "always_s2": r_s2, "trained_policy": r_pol},
-        "avg_deliberation_cost": {"always_s2": c_s2, "trained_policy": c_pol},
+        "reward": {
+            "always_s1": r_s1,
+            "always_s2": r_s2,
+            "threshold": r_thr,
+            "trained_policy": r_pol,
+        },
+        "avg_deliberation_cost": {
+            "always_s2": c_s2,
+            "threshold": c_thr,
+            "trained_policy": c_pol,
+        },
         "escalation_by_severity": rates,
         "monotonic_nondecreasing": mono,
         "escalation_by_trigger_reason": by_reason,

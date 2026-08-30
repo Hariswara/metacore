@@ -1,11 +1,11 @@
 """GatingEnv shape, budget invariants, and trigger_reason branching."""
 from __future__ import annotations
 
-import numpy as np
-import yaml
 from pathlib import Path
 
-from gating_env import GatingEnv, OBS_DIM, describe_observation
+import numpy as np
+import yaml
+from gating_env import OBS_DIM, GatingEnv, describe_observation
 
 
 def _cfg():
@@ -77,3 +77,30 @@ def test_sensing_escalation_is_penalised():
     _, reward_s2, _, _, info_s2 = env.step(1)
     assert info_s2["trigger_reason"] == "sensing"
     assert reward_s2 < 0  # sensing_escalation_penalty + deliberation_cost
+
+
+def test_value_axis_benefit_uses_config_floors():
+    """Benefit floors live in config.yaml, not magic numbers in gating_env."""
+    cfg = _cfg()
+    cfg["reward"]["benefit_scale"] = 4.0
+    cfg["reward"]["value_severity_floor"] = 0.35
+    cfg["reward"]["value_uncertainty_floor"] = 0.5
+    env = GatingEnv(cfg, rng=np.random.default_rng(0))
+    env.reset()
+    env._last_raw = {
+        "epistemic_uncertainty": 0.1,
+        "competence_drop": True,
+        "trigger_reason": "value",
+        "observed_fraction": 0.9,
+        "state_class": 0,
+        "class_probabilities": [0.8, 0.1, 0.1],
+        "max_node_vulnerability": 0.3,
+        "mean_node_vulnerability": 0.2,
+        "top_at_risk_nodes": ["N12", "N11"],
+        "time_to_hazard_onset_min": 10.0,
+        "severity": "normal",
+        "budget_remaining": 3.0,
+    }
+    _, _, _, _, info = env.step(1)
+    expected = 4.0 * 0.35 * 0.5
+    assert abs(info["benefit"] - expected) < 1e-6

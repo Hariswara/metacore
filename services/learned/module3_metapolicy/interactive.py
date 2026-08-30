@@ -13,7 +13,6 @@ from pathlib import Path
 import numpy as np
 import torch
 import yaml
-
 from gating_env import OBS_DIM, GatingEnv, describe_observation
 from policy import MLPPolicy
 from system1 import system1_action
@@ -73,7 +72,9 @@ def generate(output_path: Path) -> dict:
         "raw": raw,
         "seed_used": seed,
     }
-    PENDING_PATH.write_text(json.dumps({"obs": [float(x) for x in obs], "raw": raw}), encoding="utf-8")
+    PENDING_PATH.write_text(
+        json.dumps({"obs": [float(x) for x in obs], "raw": raw}), encoding="utf-8"
+    )
     output_path.write_text(json.dumps(payload), encoding="utf-8")
     return payload
 
@@ -106,7 +107,8 @@ def process(output_path: Path) -> dict:
         proposed = system2_action(raw, rng)
         origin = "SYSTEM2"
         if CONFIG_PATH.is_file():
-            cost = float(yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))["reward"]["deliberation_cost"])
+            reward_cfg = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))["reward"]
+            cost = float(reward_cfg["deliberation_cost"])
         else:
             cost = 0.10
     else:

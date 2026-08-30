@@ -349,6 +349,7 @@ export default function GatingRoute() {
   const rewardBars = result
     ? [
         { label: "Trained policy", value: result.reward.trained_policy, color: "var(--green)" },
+        { label: "u-threshold baseline", value: result.reward.threshold, color: "var(--text-muted)" },
         { label: "Always-S2 baseline", value: result.reward.always_s2, color: "var(--text-muted)" },
         { label: "Always-S1 baseline", value: result.reward.always_s1, color: "var(--text-muted)" },
       ]
@@ -357,7 +358,18 @@ export default function GatingRoute() {
     ? Math.max(1, ...Object.values(result.reward).map((v) => Math.abs(v)))
     : 1;
 
-  const bestBaseline = result ? Math.max(result.reward.always_s1, result.reward.always_s2) : 0;
+  const baselineCandidates = result
+    ? [
+        { label: "always-S1", value: result.reward.always_s1 },
+        { label: "always-S2", value: result.reward.always_s2 },
+        { label: "u-threshold", value: result.reward.threshold },
+      ]
+    : [];
+  const bestOfBaselines = baselineCandidates.length
+    ? baselineCandidates.reduce((best, row) => (row.value > best.value ? row : best))
+    : { label: "baseline", value: 0 };
+  const bestBaseline = bestOfBaselines.value;
+  const bestBaselineLabel = bestOfBaselines.label;
   const deltaVsBaseline = result ? result.reward.trained_policy - bestBaseline : 0;
 
   return (
@@ -474,8 +486,7 @@ export default function GatingRoute() {
                   {deltaVsBaseline.toFixed(1)}
                 </div>
                 <div className="gating__kpi-note">
-                  beats {result.reward.always_s2 >= result.reward.always_s1 ? "always-S2" : "always-S1"} (
-                  {bestBaseline.toFixed(2)})
+                  beats {bestBaselineLabel} ({bestBaseline.toFixed(2)})
                 </div>
               </div>
               <div className="gating__card">
@@ -484,7 +495,8 @@ export default function GatingRoute() {
                   {result.avg_deliberation_cost.trained_policy.toFixed(3)}
                 </div>
                 <div className="gating__kpi-note">
-                  vs {result.avg_deliberation_cost.always_s2.toFixed(3)} always-S2
+                  vs {result.avg_deliberation_cost.threshold.toFixed(3)} threshold /{" "}
+                  {result.avg_deliberation_cost.always_s2.toFixed(3)} always-S2
                 </div>
               </div>
               <div className="gating__card">
@@ -516,7 +528,7 @@ export default function GatingRoute() {
             <div className="gating__card" style={{ marginTop: 14 }}>
               <div className="gating__card-title">Reward vs. baselines</div>
               <div className="gating__card-sub">
-                total episode reward — trained policy vs. always-System-1 / always-System-2
+                total episode reward — trained policy vs. always-S1 / always-S2 / u&gt;threshold
               </div>
               <div className="gating__bars">
                 {rewardBars.map((bar) => {

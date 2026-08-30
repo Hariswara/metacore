@@ -73,8 +73,13 @@ export interface Module3DecisionContext {
 }
 
 export interface Module3RunResult {
-  reward: { always_s1: number; always_s2: number; trained_policy: number };
-  avg_deliberation_cost: { always_s2: number; trained_policy: number };
+  reward: {
+    always_s1: number;
+    always_s2: number;
+    threshold: number;
+    trained_policy: number;
+  };
+  avg_deliberation_cost: { always_s2: number; threshold: number; trained_policy: number };
   escalation_by_severity: Record<string, number>;
   monotonic_nondecreasing: boolean;
   escalation_by_trigger_reason: Record<string, number>;

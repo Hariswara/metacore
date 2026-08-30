@@ -31,13 +31,16 @@ class MLPPolicy(nn.Module):
         return F.softmax(self.forward(obs), dim=-1)
 
 
-def reinforce_update(policy, opt, trajectories, baseline: float, momentum: float = 0.9):
-    """Vanilla REINFORCE with a scalar moving-average baseline.
+def reinforce_update(policy, opt, trajectories):
+    """REINFORCE with per-trajectory return standardization.
 
-    Per-trajectory returns are standardized before the advantage is taken against
-    ``baseline`` so long episodes do not drown the severity-local signal.
+    Each trajectory's undiscounted returns are z-scored, and that standardized
+    return *is* the advantage. There is no moving-average baseline — a scalar
+    baseline of raw returns would be a different scale from the z-scores and
+    would not enter the gradient.
+
     trajectories: list of dicts with keys log_probs (list[Tensor]), rewards (list[float]).
-    Returns (loss_value, new_baseline).
+    Returns (loss_value, mean_undiscounted_return) — the mean is diagnostic only.
     """
     all_returns = []
     losses = []
@@ -52,12 +55,12 @@ def reinforce_update(policy, opt, trajectories, baseline: float, momentum: float
         returns.reverse()
         all_returns.extend(returns)
         rt = torch.tensor(returns, dtype=torch.float32)
-        rt = (rt - rt.mean()) / (rt.std() + 1e-8)
-        for lp, R in zip(log_probs, rt.tolist()):
-            losses.append(-lp * (R - 0.0))  # standardized return is the advantage
+        advantage = (rt - rt.mean()) / (rt.std() + 1e-8)
+        for lp, adv in zip(log_probs, advantage.tolist(), strict=True):
+            losses.append(-lp * adv)
 
     if not losses:
-        return 0.0, baseline
+        return 0.0, 0.0
 
     loss = torch.stack(losses).mean()
     opt.zero_grad()
@@ -66,5 +69,4 @@ def reinforce_update(policy, opt, trajectories, baseline: float, momentum: float
     opt.step()
 
     mean_R = float(sum(all_returns) / len(all_returns))
-    new_baseline = momentum * baseline + (1.0 - momentum) * mean_R
-    return float(loss.item()), new_baseline
+    return float(loss.item()), mean_R

@@ -5,7 +5,6 @@ this is the wiring test (gateway -> subprocess -> module3), not a policy-quality
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
-
 from gateway.main import app
 
 client = TestClient(app)
@@ -29,13 +28,21 @@ def test_module3_run_returns_result_shape() -> None:
     )
     assert r.status_code == 200
     data = r.json()
-    assert set(data["reward"]) == {"always_s1", "always_s2", "trained_policy"}
+    assert set(data["reward"]) == {"always_s1", "always_s2", "threshold", "trained_policy"}
+    assert set(data["avg_deliberation_cost"]) == {"always_s2", "threshold", "trained_policy"}
     assert set(data["escalation_by_trigger_reason"]) == {"none", "value", "sensing", "both"}
     assert isinstance(data["monotonic_nondecreasing"], bool)
     assert len(data["decisions"]) > 0
     assert len(data["decision_context"]) * 2 == len(data["decisions"])
     ctx = data["decision_context"][0]
-    assert {"severity", "trigger_reason", "epistemic_uncertainty", "observed_fraction", "verdict"} <= set(ctx)
+    required = {
+        "severity",
+        "trigger_reason",
+        "epistemic_uncertainty",
+        "observed_fraction",
+        "verdict",
+    }
+    assert required <= set(ctx)
 
     gen = client.post("/api/module3/generate")
     assert gen.status_code == 200, gen.text

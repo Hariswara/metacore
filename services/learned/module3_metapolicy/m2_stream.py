@@ -10,8 +10,8 @@ missing trigger_reason / observed_fraction are derived or defaulted.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 SCHEMA_VERSIONS_ACCEPTED = {"m2-out/0.1", "m2-out/0.2", "m2-out/0.3"}
 SCHEMA_VERSION_EXPECTED = "m2-out/0.3"

@@ -8,8 +8,18 @@ from collections import defaultdict
 
 import numpy as np
 import torch
-
 from synthetic_context import HAZARD_STAGES
+
+
+def _obs_u(obs) -> float:
+    if hasattr(obs, "detach"):
+        return float(obs.detach().reshape(-1)[0])
+    return float(np.asarray(obs).reshape(-1)[0])
+
+
+def threshold_action(obs, threshold: float) -> int:
+    """Naive ``u > threshold`` rule — the 'why not just a threshold?' baseline."""
+    return int(_obs_u(obs) > threshold)
 
 
 def _select_action(mode, policy, obs_t, env):
@@ -17,6 +27,9 @@ def _select_action(mode, policy, obs_t, env):
         return 0
     if mode == "always_s2":
         return 1
+    if mode == "threshold":
+        thr = float(env.reward_cfg["trigger_threshold"])
+        return threshold_action(obs_t, thr)
     # policy
     with torch.no_grad():
         logits = policy(obs_t)
@@ -55,7 +68,11 @@ def run_episode(env, mode: str, policy=None) -> dict:
 
 
 def run_baseline(env, mode: str, policy=None, n_episodes: int = 5) -> float:
-    """Mean total reward over n_episodes for mode in {always_s1, always_s2, policy}."""
+    """Mean total reward over n_episodes.
+
+    mode in {always_s1, always_s2, threshold, policy}.
+    ``threshold`` is the naive ``u > trigger_threshold`` rule.
+    """
     rewards = [run_episode(env, mode, policy)["total_reward"] for _ in range(n_episodes)]
     return float(np.mean(rewards))
 

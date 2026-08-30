@@ -4,10 +4,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import interactive
 import torch
 import yaml
-
-import interactive
 from gating_env import OBS_DIM
 from policy import MLPPolicy
 
@@ -26,7 +25,10 @@ def test_generate_then_process(tmp_path, monkeypatch):
 
     (state / "last_config.yaml").write_text(yaml.safe_dump(cfg), encoding="utf-8")
     policy = MLPPolicy(d_in=OBS_DIM, n_actions=2)
-    torch.save({"state_dict": policy.state_dict(), "d_in": OBS_DIM, "n_actions": 2}, state / "policy.pt")
+    torch.save(
+        {"state_dict": policy.state_dict(), "d_in": OBS_DIM, "n_actions": 2},
+        state / "policy.pt",
+    )
 
     generated = interactive.generate(tmp_path / "gen.json")
     assert len(generated["observation"]) == OBS_DIM

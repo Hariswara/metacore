@@ -9,12 +9,11 @@ Branches on M2's trigger_reason (m2-out/0.3):
 """
 from __future__ import annotations
 
-import numpy as np
 import gymnasium as gym
+import numpy as np
 from gymnasium import spaces
-
-from synthetic_context import sample_scenario, severity_index
 from m2_stream import load_jsonl, replay_stream
+from synthetic_context import sample_scenario, severity_index
 from system1 import system1_action
 from system2 import system2_action
 from verifier import mock_verify
@@ -23,19 +22,19 @@ OBS_DIM = 12
 
 # What the gate actually sees — one row per slot of the 12-d vector. Source is who
 # produced the number, not who trains on it. The dashboard Generate step renders this.
-OBS_FIELDS = [
-    {"index": 0, "name": "epistemic_uncertainty", "source": "M2", "meaning": "u — how untrustworthy this reading is (0 sure … 1 no evidence)"},
-    {"index": 1, "name": "reason_value", "source": "M2", "meaning": "1 if cyclone-like (trigger_reason is value or both), else 0"},
-    {"index": 2, "name": "reason_sensing", "source": "M2", "meaning": "1 if data is missing (trigger_reason is sensing or both), else 0"},
-    {"index": 3, "name": "state_class", "source": "M2", "meaning": "M2's safety class, scaled to 0..1"},
+OBS_FIELDS = [  # one row per slot; keep one-per-line even when over 100 chars
+    {"index": 0, "name": "epistemic_uncertainty", "source": "M2", "meaning": "u — how untrustworthy this reading is (0 sure … 1 no evidence)"},  # noqa: E501
+    {"index": 1, "name": "reason_value", "source": "M2", "meaning": "1 if cyclone-like (trigger_reason is value or both), else 0"},  # noqa: E501
+    {"index": 2, "name": "reason_sensing", "source": "M2", "meaning": "1 if data is missing (trigger_reason is sensing or both), else 0"},  # noqa: E501
+    {"index": 3, "name": "state_class", "source": "M2", "meaning": "M2's safety class, scaled to 0..1"},  # noqa: E501
     {"index": 4, "name": "class_prob_0", "source": "M2", "meaning": "P(safety class 0)"},
     {"index": 5, "name": "class_prob_1", "source": "M2", "meaning": "P(safety class 1)"},
     {"index": 6, "name": "class_prob_2", "source": "M2", "meaning": "P(safety class 2)"},
-    {"index": 7, "name": "max_node_vulnerability", "source": "M1", "meaning": "worst node's exposure (0..1) — what S1/S2 shed against"},
-    {"index": 8, "name": "severity", "source": "M1", "meaning": "hazard stage scaled 0 / 0.33 / 0.66 / 1.0"},
-    {"index": 9, "name": "time_to_hazard", "source": "M1", "meaning": "minutes to onset, clipped ±30 then / 30"},
-    {"index": 10, "name": "budget_remaining", "source": "env", "meaning": "S2 calls still allowed this storm, as a fraction of the budget"},
-    {"index": 11, "name": "observed_fraction", "source": "M2", "meaning": "share of M1 features that were actually measured"},
+    {"index": 7, "name": "max_node_vulnerability", "source": "M1", "meaning": "worst node's exposure (0..1) — what S1/S2 shed against"},  # noqa: E501
+    {"index": 8, "name": "severity", "source": "M1", "meaning": "hazard stage scaled 0 / 0.33 / 0.66 / 1.0"},  # noqa: E501
+    {"index": 9, "name": "time_to_hazard", "source": "M1", "meaning": "minutes to onset, clipped ±30 then / 30"},  # noqa: E501
+    {"index": 10, "name": "budget_remaining", "source": "env", "meaning": "S2 calls still allowed this storm, as a fraction of the budget"},  # noqa: E501
+    {"index": 11, "name": "observed_fraction", "source": "M2", "meaning": "share of M1 features that were actually measured"},  # noqa: E501
 ]
 
 
@@ -56,7 +55,9 @@ def _reason_flags(reason: str) -> tuple[float, float]:
     )
 
 
-def _build_obs(m2: dict, ctx: dict, budget_remaining: float, budget_total: float, k: int) -> np.ndarray:
+def _build_obs(
+    m2: dict, ctx: dict, budget_remaining: float, budget_total: float, k: int
+) -> np.ndarray:
     probs = list(m2["class_probabilities"])
     while len(probs) < k:
         probs.append(0.0)
@@ -153,6 +154,11 @@ class GatingEnv(gym.Env):
         severity_norm = severity_index(raw["severity"]) / 3.0
         u = float(raw["epistemic_uncertainty"])
         thr = float(self.reward_cfg["trigger_threshold"])
+        calm = float(self.reward_cfg["calm_severity_cutoff"])
+        partial = float(self.reward_cfg["needless_partial_scale"])
+        sev_floor = float(self.reward_cfg["value_severity_floor"])
+        u_floor = float(self.reward_cfg["value_uncertainty_floor"])
+        missed_cut = float(self.reward_cfg["missed_severity_cutoff"])
         reason = str(raw.get("trigger_reason", "none"))
         value_axis = reason in ("value", "both")
         sensing_only = reason == "sensing"
@@ -161,19 +167,19 @@ class GatingEnv(gym.Env):
         # value/both → escalate; sensing-only → stay on conservative S1.
         if effective == 1 and sensing_only:
             benefit = float(self.reward_cfg["sensing_escalation_penalty"])
-        elif effective == 1 and severity_norm < 0.25 and u < thr and not value_axis:
+        elif effective == 1 and severity_norm < calm and u < thr and not value_axis:
             benefit = float(self.reward_cfg["needless_escalation_penalty"])
-        elif effective == 1 and severity_norm < 0.25 and not value_axis:
-            benefit = 0.5 * float(self.reward_cfg["needless_escalation_penalty"])
+        elif effective == 1 and severity_norm < calm and not value_axis:
+            benefit = partial * float(self.reward_cfg["needless_escalation_penalty"])
         elif effective == 1 and value_axis:
             benefit = (
                 float(self.reward_cfg["benefit_scale"])
-                * max(severity_norm, 0.35)
-                * max(u, 0.5)
+                * max(severity_norm, sev_floor)
+                * max(u, u_floor)
             )
         elif effective == 1:
             benefit = float(self.reward_cfg["benefit_scale"]) * severity_norm * u
-        elif effective == 0 and value_axis and severity_norm > 0.5:
+        elif effective == 0 and value_axis and severity_norm > missed_cut:
             benefit = -float(self.reward_cfg["missed_escalation_penalty"])
         else:
             benefit = 0.0
