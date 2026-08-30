@@ -4,17 +4,19 @@ Simulates sample actions from Module 3 against the OpenDSS physical twin,
 evaluates limits, computes verdicts, attribution, and grounded causal logs.
 Writes sample_m4_output.jsonl for dashboard and downstream integration.
 """
+
 import json
 from pathlib import Path
+
 from translation.abductive.attribution import AbductiveAttributor
 from translation.templates.causal_logger import TemplateCausalLogger
-from verification.firewall.verifier import PhysicsVerifier
-from verification.types import (
+from translation.types import (
     BreakerCommand,
     DispatchSetpoint,
     LoadShedCommand,
     ProposedControlAction,
 )
+from verification.firewall.verifier import PhysicsVerifier
 
 SAMPLE_EPISODES = [
     {
@@ -60,7 +62,7 @@ SAMPLE_EPISODES = [
         ),
     },
     {
-        "description": "4. Unsafe action: Reactive power over-injection causing overvoltage (Reject)",
+        "description": "4. Unsafe action: Reactive power over-injection (Reject)",
         "action": ProposedControlAction(
             action_id="act-demo-004-overvolt",
             origin="SYSTEM2",
@@ -71,7 +73,7 @@ SAMPLE_EPISODES = [
         ),
     },
     {
-        "description": "5. Unsafe action: Excessive generator dispatch causing line thermal overload (Reject)",
+        "description": "5. Unsafe action: Excessive generator export (Reject)",
         "action": ProposedControlAction(
             action_id="act-demo-005-overload",
             origin="SYSTEM2",
@@ -107,39 +109,56 @@ def run_demo() -> None:
     for ep in SAMPLE_EPISODES:
         print(f"\n--- Episode: {ep['description']} ---")
         action: ProposedControlAction = ep["action"]
-        print(f"Action ID: {action.action_id} | Origin: {action.origin} | Rationale: {action.rationale}")
+        print(
+            f"Action ID: {action.action_id} | Origin: {action.origin} | "
+            f"Rationale: {action.rationale}"
+        )
 
         # 1. Physics Verification in OpenDSS
         verdict = verifier.verify(action)
-        print(f"Verdict: [{verdict.decision.value}] (Power flow solve latency: {verdict.solve_latency_ms:.2f} ms)")
+        print(
+            f"Verdict: [{verdict.decision.value}] "
+            f"(Power flow solve latency: {verdict.solve_latency_ms:.2f} ms)"
+        )
 
         # 2. Abductive Attribution
         if verdict.violations:
-            attributed_violations = AbductiveAttributor.attribute_violations(action, verdict.violations)
+            attributed_violations = AbductiveAttributor.attribute_violations(
+                action, verdict.violations
+            )
             verdict.violations = attributed_violations
 
         # 3. Feedback Rejection Trace (to M2)
         rejection_trace = verifier.build_rejection_trace(verdict.action_id, verdict.violations)
         if verdict.violations:
-            print(f"Violations Detected: {len(verdict.violations)} | Rejection Severity: {rejection_trace.severity:.4f}")
+            print(
+                f"Violations Detected: {len(verdict.violations)} | "
+                f"Rejection Severity: {rejection_trace.severity:.4f}"
+            )
             for v in verdict.violations:
-                print(f"  • [{v.type.value}] Element: {v.element_id} | Measured: {v.measured} | Limit: {v.limit} | Cause: {v.attributed_component}")
+                print(
+                    f"  • [{v.type.value}] Element: {v.element_id} | "
+                    f"Measured: {v.measured} | Limit: {v.limit} | "
+                    f"Cause: {v.attributed_component}"
+                )
 
         # 4. Grounded Causal Log (to Operator Dashboard)
         causal_log = TemplateCausalLogger.generate_log(verdict)
-        print(f"Causal Log: \"{causal_log.text}\"")
+        print(f'Causal Log: "{causal_log.text}"')
         if causal_log.grounded_entities:
             print(f"Grounded Entities: {causal_log.grounded_entities}")
 
         # Save to JSONL bundle
-        output_records.append({
-            "action_id": action.action_id,
-            "decision": verdict.decision.value,
-            "solve_latency_ms": verdict.solve_latency_ms,
-            "violations": [v.model_dump() for v in verdict.violations],
-            "rejection_severity": rejection_trace.severity,
-            "causal_log": causal_log.model_dump(),
-        })
+        output_records.append(
+            {
+                "action_id": action.action_id,
+                "decision": verdict.decision.value,
+                "solve_latency_ms": verdict.solve_latency_ms,
+                "violations": [v.model_dump() for v in verdict.violations],
+                "rejection_severity": rejection_trace.severity,
+                "causal_log": causal_log.model_dump(),
+            }
+        )
 
     # Write output artifact
     out_path = Path(__file__).parent / "sample_m4_output.jsonl"

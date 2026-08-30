@@ -1,5 +1,5 @@
 """Tests for Module 4 Semantic Translation and Grounding Invariants."""
-import pytest
+
 from translation.abductive.attribution import AbductiveAttributor
 from translation.templates.causal_logger import TemplateCausalLogger
 from translation.types import (
@@ -7,7 +7,6 @@ from translation.types import (
     CausalLog,
     Decision,
     DispatchSetpoint,
-    Generator,
     ProposedControlAction,
     VerificationVerdict,
     Violation,
@@ -66,7 +65,7 @@ def test_grounded_causal_log_generation() -> None:
     # Strict Grounding Invariant: grounded_entities MUST be a subset of violation element_ids
     violation_elements = {v.element_id for v in verdict.violations}
     for entity in causal_log.grounded_entities:
-        assert entity in violation_elements, f"Entity {entity} is not grounded in violation elements!"
+        assert entity in violation_elements, f"Entity {entity} not grounded in violation elements!"
 
 
 def test_approved_action_causal_log() -> None:

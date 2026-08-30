@@ -1,10 +1,7 @@
 """Integration Tests for Module 4 with M3 Sample Action Stream."""
-import json
-from pathlib import Path
-import pytest
+
 from verification.firewall.verifier import PhysicsVerifier
 from verification.types import ProposedControlAction
-
 
 SAMPLE_M3_ACTIONS = [
     {

@@ -2,8 +2,9 @@
 
 ZERO ML DEPENDENCIES.
 """
+
 import time
-from typing import Tuple
+
 import opendssdirect as dss
 
 
@@ -11,7 +12,7 @@ class PowerFlowSolver:
     """Solves AC snapshot power flow using OpenDSSDirect and measures solve latency."""
 
     @staticmethod
-    def solve_snapshot() -> Tuple[bool, float]:
+    def solve_snapshot() -> tuple[bool, float]:
         """Executes a static AC power flow snapshot.
 
         Returns:

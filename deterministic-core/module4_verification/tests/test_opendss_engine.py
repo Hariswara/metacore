@@ -1,5 +1,5 @@
 """Tests for OpenDSS Circuit Twin Loading and Base Power Flow."""
-import pytest
+
 from verification.opendss.circuit import CircuitTwin
 from verification.powerflow.solver import PowerFlowSolver
 

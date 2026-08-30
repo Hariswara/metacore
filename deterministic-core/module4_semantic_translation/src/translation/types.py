@@ -2,18 +2,19 @@
 
 ZERO ML DEPENDENCIES. Mirrors verification and action types without requiring OpenDSS.
 """
-from enum import Enum
-from typing import List, Optional
+
+from enum import StrEnum
+
 from pydantic import BaseModel, Field
 
 
-class Decision(str, Enum):
+class Decision(StrEnum):
     DECISION_UNSPECIFIED = "DECISION_UNSPECIFIED"
     DECISION_APPROVE = "DECISION_APPROVE"
     DECISION_REJECT = "DECISION_REJECT"
 
 
-class ViolationType(str, Enum):
+class ViolationType(StrEnum):
     VIOLATION_TYPE_UNSPECIFIED = "VIOLATION_TYPE_UNSPECIFIED"
     VIOLATION_TYPE_UNDERVOLTAGE = "VIOLATION_TYPE_UNDERVOLTAGE"
     VIOLATION_TYPE_OVERVOLTAGE = "VIOLATION_TYPE_OVERVOLTAGE"
@@ -24,6 +25,7 @@ class ViolationType(str, Enum):
 
 class Violation(BaseModel):
     """Structured physical boundary violation record."""
+
     type: ViolationType
     element_id: str
     limit: float
@@ -52,27 +54,28 @@ class DispatchSetpoint(BaseModel):
 class ProposedControlAction(BaseModel):
     action_id: str
     origin: str = "SYSTEM1"
-    breakers: List[BreakerCommand] = Field(default_factory=list)
-    load_shed: List[LoadShedCommand] = Field(default_factory=list)
-    dispatch: List[DispatchSetpoint] = Field(default_factory=list)
+    breakers: list[BreakerCommand] = Field(default_factory=list)
+    load_shed: list[LoadShedCommand] = Field(default_factory=list)
+    dispatch: list[DispatchSetpoint] = Field(default_factory=list)
     rationale: str = ""
 
 
 class VerificationVerdict(BaseModel):
     action_id: str
     decision: Decision
-    violations: List[Violation] = Field(default_factory=list)
+    violations: list[Violation] = Field(default_factory=list)
     solve_latency_ms: float = 0.0
 
 
 class RejectionTrace(BaseModel):
     action_id: str
-    violations: List[Violation] = Field(default_factory=list)
+    violations: list[Violation] = Field(default_factory=list)
     severity: float = 0.0
 
 
-class Generator(str, Enum):
+class Generator(StrEnum):
     """Generator type used for causal log synthesis."""
+
     GENERATOR_UNSPECIFIED = "GENERATOR_UNSPECIFIED"
     GENERATOR_TEMPLATE = "GENERATOR_TEMPLATE"
     GENERATOR_CONSTRAINED = "GENERATOR_CONSTRAINED"
@@ -80,9 +83,10 @@ class Generator(str, Enum):
 
 class CausalLog(BaseModel):
     """Operator-facing causal explanation, grounded in physical violation evidence."""
+
     action_id: str
     text: str
-    grounded_entities: List[str] = Field(
+    grounded_entities: list[str] = Field(
         default_factory=list,
         description="Elements cited in the text (must be a subset of violation element_ids)",
     )

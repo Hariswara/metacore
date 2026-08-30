@@ -2,10 +2,10 @@
 
 ZERO ML DEPENDENCIES. Sole interface to OpenDSSDirect.py.
 """
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-import opendssdirect as dss
 
+from pathlib import Path
+
+import opendssdirect as dss
 
 DEFAULT_MODEL_PATH = Path(__file__).parent / "models" / "delft_3island.dss"
 
@@ -13,10 +13,10 @@ DEFAULT_MODEL_PATH = Path(__file__).parent / "models" / "delft_3island.dss"
 class CircuitTwin:
     """Manages an OpenDSS microgrid simulation instance and state extraction."""
 
-    def __init__(self, dss_file_path: Optional[str] = None) -> None:
+    def __init__(self, dss_file_path: str | None = None) -> None:
         self.dss_file_path = Path(dss_file_path) if dss_file_path else DEFAULT_MODEL_PATH
-        self._initial_load_cache: Dict[str, Tuple[float, float]] = {}
-        self._initial_gen_cache: Dict[str, Tuple[float, float]] = {}
+        self._initial_load_cache: dict[str, tuple[float, float]] = {}
+        self._initial_gen_cache: dict[str, tuple[float, float]] = {}
         self.compile_base_circuit()
 
     def compile_base_circuit(self) -> bool:
@@ -30,36 +30,40 @@ class CircuitTwin:
         self._initial_load_cache.clear()
         for load_name in dss.Loads.AllNames():
             dss.Loads.Name(load_name)
-            self._initial_load_cache[load_name.lower()] = (float(dss.Loads.kW()), float(dss.Loads.kvar()))
+            p = float(dss.Loads.kW())
+            q = float(dss.Loads.kvar())
+            self._initial_load_cache[load_name.lower()] = (p, q)
 
         self._initial_gen_cache.clear()
         for gen_name in dss.Generators.AllNames():
             dss.Generators.Name(gen_name)
-            self._initial_gen_cache[gen_name.lower()] = (float(dss.Generators.kW()), float(dss.Generators.kvar()))
+            p = float(dss.Generators.kW())
+            q = float(dss.Generators.kvar())
+            self._initial_gen_cache[gen_name.lower()] = (p, q)
 
     def reset_to_base(self) -> None:
         """Restores circuit to nominal baseline state."""
         self.compile_base_circuit()
 
-    def get_all_buses(self) -> List[str]:
+    def get_all_buses(self) -> list[str]:
         """Returns all bus names in the active circuit."""
         return [b.upper() for b in dss.Circuit.AllBusNames()]
 
-    def get_all_lines(self) -> List[str]:
+    def get_all_lines(self) -> list[str]:
         """Returns all line names in the active circuit."""
         return [line.upper() for line in dss.Lines.AllNames()]
 
-    def get_all_generators(self) -> List[str]:
+    def get_all_generators(self) -> list[str]:
         """Returns all generator names in the active circuit."""
         return [gen.upper() for gen in dss.Generators.AllNames()]
 
-    def get_all_loads(self) -> List[str]:
+    def get_all_loads(self) -> list[str]:
         """Returns all load names in the active circuit."""
         return [load.upper() for load in dss.Loads.AllNames()]
 
-    def get_bus_voltages_pu(self) -> Dict[str, float]:
-        """Returns the minimum per-unit voltage magnitude for each bus across all active phases."""
-        bus_voltages: Dict[str, float] = {}
+    def get_bus_voltages_pu(self) -> dict[str, float]:
+        """Returns minimum per-unit voltage magnitude for each bus across all active phases."""
+        bus_voltages: dict[str, float] = {}
         for bus_name in dss.Circuit.AllBusNames():
             dss.Circuit.SetActiveBus(bus_name)
             pu_mags = dss.Bus.puVmagAngle()
@@ -70,9 +74,9 @@ class CircuitTwin:
                     bus_voltages[bus_name.upper()] = min(mags)
         return bus_voltages
 
-    def get_line_loadings(self) -> Dict[str, Dict[str, float]]:
+    def get_line_loadings(self) -> dict[str, dict[str, float]]:
         """Returns line current magnitudes and rating margins."""
-        line_data: Dict[str, Dict[str, float]] = {}
+        line_data: dict[str, dict[str, float]] = {}
         for line_name in dss.Lines.AllNames():
             dss.Lines.Name(line_name)
             dss.Circuit.SetActiveElement(f"Line.{line_name}")
@@ -112,7 +116,8 @@ class CircuitTwin:
             dss.Circuit.SetActiveElement(f"Load.{load_name}")
             bus_name = dss.CktElement.BusNames()[0].split(".")[0]
             if bus_name.lower() == node_id.lower() or node_id.lower() in load_name.lower():
-                base_p, base_q = self._initial_load_cache.get(load_name.lower(), (float(dss.Loads.kW()), float(dss.Loads.kvar())))
+                base_fallback = (float(dss.Loads.kW()), float(dss.Loads.kvar()))
+                base_p, base_q = self._initial_load_cache.get(load_name.lower(), base_fallback)
                 new_p = base_p * (1.0 - shed_fraction)
                 new_q = base_q * (1.0 - shed_fraction)
                 dss.Loads.kW(new_p)

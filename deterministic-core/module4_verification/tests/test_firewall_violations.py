@@ -1,5 +1,5 @@
 """Tests for Physics Firewall Violations, Bounds Enforcement, and Severity Scoring."""
-import pytest
+
 from verification.firewall.verifier import PhysicsVerifier
 from verification.types import (
     BreakerCommand,
@@ -31,7 +31,7 @@ def test_nominal_action_approved() -> None:
 
 def test_undervoltage_violation_rejected() -> None:
     verifier = PhysicsVerifier()
-    # Opening critical tie lines and turning off Island 3 generation leads to undervoltage on Island 3
+    # Opening tie lines and zeroing Island 3 gen leads to undervoltage on Island 3
     action = ProposedControlAction(
         action_id="act-undervolt-001",
         origin="SYSTEM2",
@@ -51,7 +51,9 @@ def test_undervoltage_violation_rejected() -> None:
     assert verdict.decision == Decision.DECISION_REJECT
     assert len(verdict.violations) > 0
 
-    undervolt_violations = [v for v in verdict.violations if v.type == ViolationType.VIOLATION_TYPE_UNDERVOLTAGE]
+    undervolt_violations = [
+        v for v in verdict.violations if v.type == ViolationType.VIOLATION_TYPE_UNDERVOLTAGE
+    ]
     assert len(undervolt_violations) > 0
 
     trace = verifier.build_rejection_trace(verdict.action_id, verdict.violations)
@@ -73,13 +75,15 @@ def test_overvoltage_violation_rejected() -> None:
 
     verdict = verifier.verify(action)
     assert verdict.decision == Decision.DECISION_REJECT
-    overvolt_violations = [v for v in verdict.violations if v.type == ViolationType.VIOLATION_TYPE_OVERVOLTAGE]
+    overvolt_violations = [
+        v for v in verdict.violations if v.type == ViolationType.VIOLATION_TYPE_OVERVOLTAGE
+    ]
     assert len(overvolt_violations) > 0
 
 
 def test_thermal_overload_violation_rejected() -> None:
     verifier = PhysicsVerifier()
-    # Over-dispatching generator beyond line ratings (LINE_SOURCE_N1 & E_CRIT_1 exceed ampacity)
+    # Over-dispatching generator beyond line ratings (exceeds ampacity)
     action = ProposedControlAction(
         action_id="act-thermal-001",
         origin="SYSTEM2",
@@ -91,7 +95,9 @@ def test_thermal_overload_violation_rejected() -> None:
 
     verdict = verifier.verify(action)
     assert verdict.decision == Decision.DECISION_REJECT
-    thermal_violations = [v for v in verdict.violations if v.type == ViolationType.VIOLATION_TYPE_THERMAL_OVERLOAD]
+    thermal_violations = [
+        v for v in verdict.violations if v.type == ViolationType.VIOLATION_TYPE_THERMAL_OVERLOAD
+    ]
     assert len(thermal_violations) > 0
 
 

@@ -1,12 +1,11 @@
-"""Physics Verifier Engine: The hard, deterministic safety firewall.
+"""Physics Firewall Verifier: Gatekeeper for AI-proposed actions.
 
 ZERO ML DEPENDENCIES.
 """
-from typing import List, Optional
+
 from ..opendss.circuit import CircuitTwin
 from ..powerflow.action_applicator import ActionApplicator
 from ..powerflow.solver import PowerFlowSolver
-from .limits import PhysicsLimitsChecker, SafetyLimitsConfig
 from ..types import (
     Decision,
     ProposedControlAction,
@@ -14,28 +13,21 @@ from ..types import (
     VerificationVerdict,
     Violation,
 )
+from .limits import PhysicsLimitsChecker
 
 
 class PhysicsVerifier:
-    """Hard synchronous gatekeeper for power grid control actions."""
+    """Synchronous physical verification firewall for MetaCore."""
 
-    def __init__(
-        self,
-        circuit: Optional[CircuitTwin] = None,
-        limits_checker: Optional[PhysicsLimitsChecker] = None,
-        spec_version: str = "safety-spec-v1.0",
-        network_model_version: str = "delft-3island-v1",
-    ) -> None:
-        self.circuit = circuit or CircuitTwin()
+    def __init__(self, circuit_twin: CircuitTwin | None = None) -> None:
+        self.circuit = circuit_twin or CircuitTwin()
         self.applicator = ActionApplicator(self.circuit)
-        self.limits_checker = limits_checker or PhysicsLimitsChecker()
-        self.spec_version = spec_version
-        self.network_model_version = network_model_version
+        self.limits_checker = PhysicsLimitsChecker()
 
     def verify(self, action: ProposedControlAction) -> VerificationVerdict:
-        """Evaluates a proposed action against the OpenDSS physical twin."""
+        """Evaluates a proposed action against OpenDSS physical constraints."""
         try:
-            # 1. Reset circuit to pristine baseline before applying action
+            # 1. Reset circuit to pristine base state
             self.circuit.reset_to_base()
 
             # 2. Apply proposed control action
@@ -45,7 +37,7 @@ class PhysicsVerifier:
                     action_id=action.action_id,
                     decision=Decision.DECISION_REJECT,
                     violations=malformed_violations,
-                    latency_ms=0.5,
+                    latency_ms=0.0,
                 )
 
             # 3. Execute AC power flow solve
@@ -55,7 +47,9 @@ class PhysicsVerifier:
             violations = self.limits_checker.check_limits(self.circuit, converged)
 
             # 5. Formulate verdict
-            decision = Decision.DECISION_APPROVE if len(violations) == 0 else Decision.DECISION_REJECT
+            decision = (
+                Decision.DECISION_APPROVE if len(violations) == 0 else Decision.DECISION_REJECT
+            )
 
             return self._build_verdict(
                 action_id=action.action_id,
@@ -64,17 +58,16 @@ class PhysicsVerifier:
                 latency_ms=latency_ms,
             )
         finally:
-            # Always leave circuit in baseline state
             self.circuit.reset_to_base()
 
-    def build_rejection_trace(self, action_id: str, violations: List[Violation]) -> RejectionTrace:
-        """Calculates normalized severity score and formats feedback for Module 2."""
+    def build_rejection_trace(self, action_id: str, violations: list[Violation]) -> RejectionTrace:
+        """Constructs feedback RejectionTrace with normalized severity for Module 2."""
         if not violations:
             return RejectionTrace(action_id=action_id, violations=[], severity=0.0)
 
-        # Max normalized margin across all violations capped at 1.0
+        # Normalize severity: worst absolute margin capped at 1.0
         max_margin = max(abs(v.margin_fraction) for v in violations)
-        severity = min(1.0, max(0.0, float(max_margin)))
+        severity = min(1.0, max(0.0, max_margin))
 
         return RejectionTrace(
             action_id=action_id,
@@ -86,14 +79,12 @@ class PhysicsVerifier:
         self,
         action_id: str,
         decision: Decision,
-        violations: List[Violation],
+        violations: list[Violation],
         latency_ms: float,
     ) -> VerificationVerdict:
         return VerificationVerdict(
             action_id=action_id,
             decision=decision,
             violations=violations,
-            solve_latency_ms=round(latency_ms, 3),
-            spec_version=self.spec_version,
-            network_model_version=self.network_model_version,
+            solve_latency_ms=latency_ms,
         )

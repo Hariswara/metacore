@@ -1,6 +1,7 @@
 """Benchmark Tests: Asserts solve and limit check latency targets (< 50 ms)."""
+
 import statistics
-import pytest
+
 from verification.firewall.verifier import PhysicsVerifier
 from verification.types import LoadShedCommand, ProposedControlAction
 

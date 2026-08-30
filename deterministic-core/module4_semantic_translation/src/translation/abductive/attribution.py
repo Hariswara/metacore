@@ -2,17 +2,19 @@
 
 ZERO ML DEPENDENCIES.
 """
-from typing import List
-from ..types import ProposedControlAction, Violation, ViolationType
+
+from ..types import ProposedControlAction, Violation
 
 
 class AbductiveAttributor:
-    """Infers plausible causal attribution from proposed action commands to observed physical violations."""
+    """Infers causal attribution from action commands to observed violations."""
 
     @staticmethod
-    def attribute_violations(action: ProposedControlAction, violations: List[Violation]) -> List[Violation]:
+    def attribute_violations(
+        action: ProposedControlAction, violations: list[Violation]
+    ) -> list[Violation]:
         """Enriches violations with plausible attributed_component from the action."""
-        enriched: List[Violation] = []
+        enriched: list[Violation] = []
 
         for v in violations:
             target_id = v.element_id.upper()
@@ -25,7 +27,8 @@ class AbductiveAttributor:
                         attributed = f"breaker.{b.edge_id}"
                         break
                     # If tie line opened and island bus experienced undervoltage
-                    if "CRIT" in b.edge_id.upper() or "TIE" in b.edge_id.upper() or "1_2" in b.edge_id.upper() or "2_3" in b.edge_id.upper():
+                    tie_keywords = ("CRIT", "TIE", "1_2", "2_3")
+                    if any(kw in b.edge_id.upper() for kw in tie_keywords):
                         attributed = f"breaker.{b.edge_id}"
                         break
 
