@@ -21,6 +21,31 @@ from verifier import mock_verify
 
 OBS_DIM = 12
 
+# What the gate actually sees — one row per slot of the 12-d vector. Source is who
+# produced the number, not who trains on it. The dashboard Generate step renders this.
+OBS_FIELDS = [
+    {"index": 0, "name": "epistemic_uncertainty", "source": "M2", "meaning": "u — how untrustworthy this reading is (0 sure … 1 no evidence)"},
+    {"index": 1, "name": "reason_value", "source": "M2", "meaning": "1 if cyclone-like (trigger_reason is value or both), else 0"},
+    {"index": 2, "name": "reason_sensing", "source": "M2", "meaning": "1 if data is missing (trigger_reason is sensing or both), else 0"},
+    {"index": 3, "name": "state_class", "source": "M2", "meaning": "M2's safety class, scaled to 0..1"},
+    {"index": 4, "name": "class_prob_0", "source": "M2", "meaning": "P(safety class 0)"},
+    {"index": 5, "name": "class_prob_1", "source": "M2", "meaning": "P(safety class 1)"},
+    {"index": 6, "name": "class_prob_2", "source": "M2", "meaning": "P(safety class 2)"},
+    {"index": 7, "name": "max_node_vulnerability", "source": "M1", "meaning": "worst node's exposure (0..1) — what S1/S2 shed against"},
+    {"index": 8, "name": "severity", "source": "M1", "meaning": "hazard stage scaled 0 / 0.33 / 0.66 / 1.0"},
+    {"index": 9, "name": "time_to_hazard", "source": "M1", "meaning": "minutes to onset, clipped ±30 then / 30"},
+    {"index": 10, "name": "budget_remaining", "source": "env", "meaning": "S2 calls still allowed this storm, as a fraction of the budget"},
+    {"index": 11, "name": "observed_fraction", "source": "M2", "meaning": "share of M1 features that were actually measured"},
+]
+
+
+def describe_observation(obs) -> list[dict]:
+    """Attach names/sources to a 12-d gate observation for the dashboard."""
+    vec = [float(x) for x in obs]
+    if len(vec) != OBS_DIM:
+        raise ValueError(f"expected {OBS_DIM}-d observation, got {len(vec)}")
+    return [{**field, "value": vec[field["index"]]} for field in OBS_FIELDS]
+
 
 def _reason_flags(reason: str) -> tuple[float, float]:
     """Return (reason_value, reason_sensing) binary flags."""

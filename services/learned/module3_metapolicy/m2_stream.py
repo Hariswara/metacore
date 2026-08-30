@@ -17,6 +17,11 @@ SCHEMA_VERSIONS_ACCEPTED = {"m2-out/0.1", "m2-out/0.2", "m2-out/0.3"}
 SCHEMA_VERSION_EXPECTED = "m2-out/0.3"
 TRIGGER_REASONS = ("none", "value", "sensing", "both")
 
+# Mirrors module2_auq_engine/config.yaml's trigger.observed_fraction_floor (0.35, keyed
+# off the real 28-feature nominal of 12/28=0.4286 -- see M2_TO_M3_CONTRACT.md). Keep in
+# sync with M2's config; a stale value here silently mislabels the boundary band.
+OF_FLOOR = 0.35
+
 # Prefer a local vendored copy so this starter runs on main before M2 merges;
 # fall back to the sibling Module 2 path when that branch is present.
 _LOCAL_SAMPLE = Path(__file__).resolve().parent / "sample_m2_to_m3.jsonl"
@@ -53,7 +58,7 @@ def load_jsonl(path=None) -> list[dict]:
                 rec["observed_fraction"] = 1.0
             if "trigger_reason" not in rec:
                 of = float(rec["observed_fraction"])
-                if of < 0.4:
+                if of < OF_FLOOR:
                     rec["trigger_reason"] = "sensing"
                 elif bool(rec["competence_drop"]):
                     rec["trigger_reason"] = "value"
@@ -107,10 +112,10 @@ def _jitter(base: dict, rng) -> dict:
     # re-derives competence_drop from jittered u.
     if reason == "sensing":
         competence_drop = True
-        of = min(of, 0.39)  # stay under the sensing floor
+        of = min(of, OF_FLOOR - 0.01)  # stay under the sensing floor
     elif reason == "both":
         competence_drop = True
-        of = min(of, 0.39)
+        of = min(of, OF_FLOOR - 0.01)
     elif reason == "value":
         competence_drop = bool(u > 0.45)
         if not competence_drop:

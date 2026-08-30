@@ -5,7 +5,7 @@ import numpy as np
 import yaml
 from pathlib import Path
 
-from gating_env import GatingEnv, OBS_DIM
+from gating_env import GatingEnv, OBS_DIM, describe_observation
 
 
 def _cfg():
@@ -20,6 +20,11 @@ def test_env_reset_step_shapes():
     env = GatingEnv(_cfg(), rng=np.random.default_rng(0))
     obs, info = env.reset()
     assert obs.shape == (OBS_DIM,)
+    named = describe_observation(obs)
+    assert len(named) == OBS_DIM
+    assert named[0]["name"] == "epistemic_uncertainty"
+    assert named[0]["source"] == "M2"
+    assert named[0]["value"] == float(obs[0])
     assert obs.dtype == np.float32
     assert env.action_space.n == 2
     obs2, reward, terminated, truncated, info = env.step(0)

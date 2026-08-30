@@ -8,6 +8,8 @@ services:
     build: ./apps/dashboard
     profiles: [default, m1, m2, m3, web]
     ports: ["5173:5173"]
+    environment:
+      GATEWAY_URL: http://gateway:8000
     depends_on: [gateway]
 
   gateway:

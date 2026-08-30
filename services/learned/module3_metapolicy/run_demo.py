@@ -1,10 +1,18 @@
 """End-to-end Module 3 prototype on the published M2 mock stream + synthetic M1 context.
 Trains a REINFORCE gating policy -> reports reward vs always-S1 / always-S2 ->
-checks escalation monotonicity by severity -> emits sample M3->M4 messages."""
+checks escalation monotonicity by severity -> emits sample M3->M4 messages.
+
+Usage: python run_demo.py [config_path] [output_json_path]
+Both args are optional and backward-compatible: with neither, behaviour is unchanged
+(reads ./config.yaml, writes ./sample_m3_to_m4.jsonl). Passing output_json_path is how
+the gateway's /module3/run route drives a one-off run with overridden knobs — it writes
+the full result (reward, escalation, decisions) as JSON there instead of the committed
+sample_m3_to_m4.jsonl, so an on-demand run never clobbers the checked-in M4 contract fixture."""
 from __future__ import annotations
 
 import json
 import random
+import sys
 import time
 import uuid
 
@@ -23,7 +31,11 @@ from evaluate import (
     is_nondecreasing,
 )
 
-cfg = yaml.safe_load(open("config.yaml"))
+config_path = sys.argv[1] if len(sys.argv) > 1 else "config.yaml"
+output_json_path = sys.argv[2] if len(sys.argv) > 2 else None
+policy_path = sys.argv[3] if len(sys.argv) > 3 else None
+
+cfg = yaml.safe_load(open(config_path))
 random.seed(cfg["seed"])
 np.random.seed(cfg["seed"])
 torch.manual_seed(cfg["seed"])
@@ -143,6 +155,11 @@ print("\nSample M3 -> M4 contract messages (ProposedControlAction / GatingDecisi
 obs, _ = env.reset()
 by_sev = {}
 records = []
+# Context is NOT part of the M3->M4 wire contract (M3_TO_M4_CONTRACT.md) -- Hariswara's
+# verifier only ever sees `records`. This is purely for the gateway/dashboard's benefit,
+# so a viewer can see the M2 input (u, trigger_reason, severity, observed_fraction) and
+# M4-mock verdict that produced each action, alongside the proposed load_shed/dispatch.
+context = []
 while True:
     obs_t = torch.tensor(obs, dtype=torch.float32).unsqueeze(0)
     with torch.no_grad():
@@ -178,11 +195,43 @@ while True:
     if sev not in by_sev:
         by_sev[sev] = (pca, gd)
         records.extend([pca, gd])
+        context.append({
+            "action_id": action_id,
+            "severity": sev,
+            "trigger_reason": info["trigger_reason"],
+            "epistemic_uncertainty": float(info["epistemic_uncertainty"]),
+            "observed_fraction": float(info["observed_fraction"]),
+            "competence_drop": bool(info["competence_drop"]),
+            "reward": float(reward),
+            "verdict": info["verdict"]["decision"],
+            "violations": info["verdict"]["violations"],
+        })
         print(json.dumps(gd))
     if terminated or truncated:
         break
 
-with open("sample_m3_to_m4.jsonl", "w", encoding="utf-8") as f:
-    for rec in records:
-        f.write(json.dumps(rec) + "\n")
-print(f"\nwrote {len(records)} records -> sample_m3_to_m4.jsonl")
+if output_json_path:
+    result = {
+        "reward": {"always_s1": r_s1, "always_s2": r_s2, "trained_policy": r_pol},
+        "avg_deliberation_cost": {"always_s2": c_s2, "trained_policy": c_pol},
+        "escalation_by_severity": rates,
+        "monotonic_nondecreasing": mono,
+        "escalation_by_trigger_reason": by_reason,
+        "decisions": records,
+        "decision_context": context,
+    }
+    with open(output_json_path, "w", encoding="utf-8") as f:
+        json.dump(result, f)
+    print(f"\nwrote result -> {output_json_path}")
+else:
+    with open("sample_m3_to_m4.jsonl", "w", encoding="utf-8") as f:
+        for rec in records:
+            f.write(json.dumps(rec) + "\n")
+    print(f"\nwrote {len(records)} records -> sample_m3_to_m4.jsonl")
+
+if policy_path:
+    from pathlib import Path as _Path
+    dest = _Path(policy_path)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    torch.save({"state_dict": policy.state_dict(), "d_in": OBS_DIM, "n_actions": 2}, dest)
+    print(f"wrote policy -> {dest}")

@@ -14,23 +14,70 @@ the module — with **zero dependency on a live M1 or M4 service**. Drop-in loca
 ## Verified results (`python run_demo.py`)
 | Metric | Value | Target |
 |---|---|---|
-| total reward always-S1 | -106.625 | baseline |
-| total reward always-S2 | -100.531 | baseline |
-| total reward trained policy | **119.476** | beat both baselines |
+| total reward always-S1 | -107.750 | baseline |
+| total reward always-S2 | -99.329 | baseline |
+| total reward trained policy | **117.976** | beat both baselines |
 | avg deliberation cost (S2 / policy) | 0.056 / 0.049 | policy ≤ always-S2 |
 | escalation rate normal→…→extreme (excl. sensing) | 0.000 / 0.261 / 1.000 / 1.000 | non-decreasing |
 | escalation by `trigger_reason` none/value/sensing/both | 0.000 / 1.000 / **0.000** / 1.000 | sensing → S1 |
 | monotonic non-decreasing | True | `True` |
 
-## Run
+Run-to-run numbers wobble a little (`mock_verify`'s reject roll hashes on action
+content, and hash randomization isn't seeded) — the pattern above (policy beats both
+baselines, escalation non-decreasing, sensing pinned to 0) is what to check, not the
+exact decimals.
+
+## Run — from the terminal
 ```bash
 pip install -r requirements.txt
 python run_demo.py
 ```
+Trains, evaluates, prints the table above, and overwrites `sample_m3_to_m4.jsonl` (the
+committed M4 contract fixture).
 
 Requires the M2 mock stream. On this branch a vendored copy lives at
-`sample_m2_to_m3.jsonl` (`m2-out/0.3`). When Module 2 is merged, `m2_stream.py`
-also accepts `../module2_auq_engine/sample_m2_to_m3.jsonl`.
+`sample_m2_to_m3.jsonl` (`m2-out/0.3`) — **keep it synced with
+`../module2_auq_engine/sample_m2_to_m3.jsonl`**; `m2_stream.py` prefers the local copy
+whenever it exists, so a stale one silently trains against numbers M2 no longer
+produces (this bit us once — see `OF_FLOOR` in `m2_stream.py`, which mirrors M2's
+`config.yaml: trigger.observed_fraction_floor` and needs updating if M2 recalibrates
+again). When Module 2 is merged, `m2_stream.py` also accepts
+`../module2_auq_engine/sample_m2_to_m3.jsonl` directly.
+
+## Run — from the dashboard
+
+The gateway exposes an on-demand train+eval run over HTTP; the dashboard's `/gating`
+page is a form for it. Two terminals, from the repo root:
+
+```bash
+# terminal 1 — gateway (needs this module's deps importable, so run from the shared
+# workspace venv, not gateway's own slim one)
+uv sync --all-packages
+uv run uvicorn gateway.main:app --app-dir services/gateway --reload --port 8000
+
+# terminal 2 — dashboard
+cd apps/dashboard && pnpm install && pnpm dev
+```
+Open the printed dashboard URL (`/gating`), set the run parameters (seed, episode
+length, budget, train/eval episodes, reward weights), click **Run**, and wait
+~15–30s. Under the hood this is exactly `python run_demo.py <config> <output>` run as
+a subprocess by `services/gateway/gateway/routers/module3.py` — same script, same
+numbers, just driven by the form instead of a terminal.
+
+Each row in the resulting decision log expands (click it) into the full picture for
+that step: the **M2 input** that produced it (`severity`, `trigger_reason`,
+`epistemic_uncertainty` — the `u` value — and `observed_fraction`), the **M4 mock
+verdict** (`APPROVE`/`REJECT` and any violations), and the **full proposed action
+plan** from whichever control path ran — `breakers`, `load_shed` (which nodes, how
+much, what priority tier), and `dispatch` (generation setpoints). None of that
+context travels over the real `M3_TO_M4_CONTRACT.md` wire format; it's additive,
+dashboard-only data from `run_demo.py`'s `context` list (`decision_context` in the
+gateway's JSON response) — Hariswara's verifier only ever sees the contract fields.
+
+This path only works when the process running `gateway.main:app` has this module's
+deps (`torch`, `gymnasium`, `numpy`, `pyyaml`) importable — true for `uv run` from the
+repo root above, **not** for `docker compose` (gateway's own image only installs
+`fastapi`/`pydantic`/`grpcio`). Wiring the compose path is future work.
 
 ## Cause-aware gating (`m2-out/0.3`)
 
@@ -56,9 +103,15 @@ in the observation vector. Escalating on `sensing` is explicitly penalised in th
 - `gating_env.py` — Gymnasium env: **12-d** obs (includes reason flags + `observed_fraction`), Discrete(2), budget-forced S1.
 - `policy.py` — small MLP + vanilla REINFORCE.
 - `evaluate.py` — baselines, escalation-by-severity, escalation-by-`trigger_reason`.
-- `run_demo.py` — BC warm-start (cause-aware heuristic) → REINFORCE → `sample_m3_to_m4.jsonl`.
+- `run_demo.py` — BC warm-start (cause-aware heuristic) → REINFORCE → `sample_m3_to_m4.jsonl`
+  (or, given `config_path`/`output_json_path` args, a structured JSON result instead —
+  see "Run — from the dashboard").
 - `M3_TO_M4_CONTRACT.md` — mock stream for Hariswara.
 - `config.yaml` — episode length, budget, reward weights (incl. `sensing_escalation_penalty`).
+- `../../gateway/gateway/routers/module3.py` — `POST /api/module3/run`; drives `run_demo.py`
+  as a subprocess for the dashboard.
+- `../../../apps/dashboard/src/routes/gating/` — the `/gating` page: run-config form +
+  reward/escalation charts + expandable decision log.
 
 ## Two things worth understanding
 1. **Budget exhaustion is not an agent action.** When `budget_remaining <= 0` the env
