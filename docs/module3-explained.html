@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Module 3 — what actually runs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"/>
+<style>
+  :root {
+    --bg: oklch(16% 0.012 250);
+    --surface: oklch(21% 0.014 250);
+    --surface-2: oklch(25.5% 0.017 250);
+    --border: oklch(33% 0.02 250);
+    --text: oklch(93% 0.008 250);
+    --muted: oklch(68% 0.013 250);
+    --dim: oklch(50% 0.013 250);
+    --blue: oklch(72% 0.15 230);
+    --blue-soft: oklch(72% 0.15 230 / 0.14);
+    --amber: oklch(78% 0.15 75);
+    --amber-soft: oklch(78% 0.15 75 / 0.14);
+    --violet: oklch(74% 0.17 320);
+    --violet-soft: oklch(74% 0.17 320 / 0.14);
+    --green: oklch(76% 0.15 150);
+    --green-soft: oklch(76% 0.15 150 / 0.14);
+    --red: oklch(66% 0.19 25);
+    --red-soft: oklch(66% 0.19 25 / 0.14);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    line-height: 1.55;
+  }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+  a { color: var(--blue); }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 40px 28px 120px; }
+
+  nav.toc {
+    position: sticky; top: 0; z-index: 5;
+    background: color-mix(in oklch, var(--bg) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+    margin: 0 -28px 32px; padding: 10px 28px;
+    display: flex; flex-wrap: wrap; gap: 8px 14px;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px;
+  }
+  nav.toc a { color: var(--dim); text-decoration: none; }
+  nav.toc a:hover { color: var(--text); }
+
+  header.page { padding-bottom: 22px; border-bottom: 1px solid var(--border); }
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim);
+  }
+  h1 { margin: 8px 0 12px; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; text-wrap: balance; }
+  header.page > p { margin: 0; color: var(--muted); max-width: 72ch; font-size: 15px; }
+
+  section { margin-top: 48px; }
+  h2 {
+    font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em;
+    color: var(--dim); margin: 0 0 14px;
+  }
+  h3 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+
+  .callout {
+    border-radius: 10px; padding: 16px 20px; border: 1px solid var(--border);
+  }
+  .callout .tag {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 10.5px; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  .callout p { margin: 8px 0 0; font-size: 14px; }
+  .fix { background: var(--violet-soft); border-color: color-mix(in oklch, var(--violet) 40%, var(--border)); }
+  .fix .tag { color: var(--violet); }
+  .argue { background: var(--amber-soft); border-color: color-mix(in oklch, var(--amber) 40%, var(--border)); }
+  .argue .tag { color: var(--amber); }
+  .ok { background: var(--green-soft); border-color: color-mix(in oklch, var(--green) 40%, var(--border)); }
+  .ok .tag { color: var(--green); }
+
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 720px) { .two { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px;
+  }
+  .card p { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .src { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px; color: var(--dim); margin-bottom: 8px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--dim); font-weight: 600; padding: 0 10px 8px 0; border-bottom: 1px solid var(--border);
+  }
+  td { padding: 9px 10px 9px 0; border-bottom: 1px solid var(--border); color: var(--muted); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  td.k { font-family: "IBM Plex Mono", ui-monospace, monospace; color: var(--text); white-space: nowrap; }
+  td.file { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px; }
+
+  .chip {
+    display: inline-block; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px;
+    padding: 2px 8px; border-radius: 5px; background: var(--surface-2); border: 1px solid var(--border); color: var(--muted);
+  }
+  .chip.s1 { color: var(--blue); border-color: color-mix(in oklch, var(--blue) 40%, var(--border)); }
+  .chip.s2 { color: var(--amber); border-color: color-mix(in oklch, var(--amber) 40%, var(--border)); }
+  .chip.gate { color: var(--violet); border-color: color-mix(in oklch, var(--violet) 40%, var(--border)); }
+
+  figure { margin: 0; }
+  figure svg { width: 100%; height: auto; display: block; }
+  figcaption { margin-top: 10px; font-size: 12.5px; color: var(--dim); max-width: 72ch; }
+
+  .plan { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .plan .head { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+  .plan .pill { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 5px; }
+  .plan.s1 .pill { background: var(--blue-soft); color: var(--blue); }
+  .plan.s2 .pill { background: var(--amber-soft); color: var(--amber); }
+  .plan .body { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .plan-row { display: flex; gap: 10px; font-size: 13px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; }
+  .plan-row .label { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px; color: var(--dim); width: 70px; flex-shrink: 0; }
+  .empty { color: var(--dim); font-style: italic; }
+
+  pre {
+    margin: 10px 0 0; padding: 12px 14px; background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 8px; overflow-x: auto; font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px; line-height: 1.5; color: var(--text);
+  }
+  .math {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 14px; margin: 10px 0 0;
+  }
+
+  ol.fn { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: 13.5px; }
+  ol.fn li { margin: 6px 0; }
+  .paper { font-size: 13px; }
+  .paper .why { color: var(--dim); font-size: 12.5px; margin-top: 2px; }
+
+  footer.page {
+    margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--border);
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px; color: var(--dim);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<nav class="toc">
+  <a href="#clocks">two clocks</a>
+  <a href="#form">dashboard knobs</a>
+  <a href="#m2">M2 stream</a>
+  <a href="#m1">synthetic context</a>
+  <a href="#priority">priority.py</a>
+  <a href="#obs">12 numbers in</a>
+  <a href="#gate">the gate</a>
+  <a href="#s1">system 1</a>
+  <a href="#s2">system 2</a>
+  <a href="#gym">gym env</a>
+  <a href="#reward">reward vs M4</a>
+  <a href="#eval">who evaluates</a>
+  <a href="#files">file map</a>
+  <a href="#papers">papers</a>
+</nav>
+
+<header class="page">
+  <div class="eyebrow">GENERATED EXPLAINER · not a source of truth · code + README are canonical</div>
+  <h1>What Module 3 actually does, file by file</h1>
+  <p>
+    The dashboard form is not the M2 signal. The gate is not System 2. System 2 is not the
+    meta-RL. Reward in the live pipeline belongs after M4, not inside a mock verifier.
+    This page is the correction pass over those mix-ups, against the committed code.
+  </p>
+  <div class="callout argue" style="margin-top:16px">
+    <span class="tag">generated · do not cite</span>
+    <p>
+      This HTML was generated as a standing explainer for the viva. It is <strong>not</strong>
+      a contract, not a spec, and not the source of truth. If it disagrees with
+      <span class="mono">services/learned/module3_metapolicy</span> (especially
+      <span class="mono">README.md</span>, <span class="mono">gating_env.py</span>, and
+      <span class="mono">M3_TO_M4_CONTRACT.md</span>), the code wins.
+    </p>
+  </div>
+</header>
+
+<section id="clocks">
+  <h2>Picture one fake storm. Everything else is counting those.</h2>
+  <div class="callout fix">
+    <span class="tag">plain version — no RL words yet</span>
+    <p>
+      We do not have a live cyclone. So the code <strong>invents practice storms</strong> and drills
+      the gate on them. One invented storm is called an <strong>episode</strong>. That is the whole
+      word. A story from “grid is fine” → “elevated” → “severe” → “extreme,” then it ends.
+    </p>
+    <p>
+      During that one storm the gate is asked, over and over:
+      <em>cheap reaction (System 1) or expensive plan (System 2)?</em>
+      Each time it is asked, that is one <strong>step</strong>. “Gating step” just means
+      “one of those questions.” Default: <strong>80 questions per storm</strong> = episode length 80.
+    </p>
+    <p>
+      System 2 is the expensive one — slower, spends the thinking budget. You are only allowed
+      to pick it <strong>45 times in that one storm</strong> (budget). After that the code
+      refuses S2 and you are stuck with S1 until the storm ends. That is “expensive thinking.”
+    </p>
+    <p>
+      Clicking Run does not type a <span class="mono">u</span>. It starts a drill:
+      invent 150 practice storms, grade the gate, then invent 12 more storms
+      <em>without changing the gate</em> (that is “frozen” — exam, not practice)
+      and plot those scores. The <span class="mono">u</span> values you later see in the log
+      were generated inside those invented storms, from Duwaragie’s file, one per step.
+    </p>
+  </div>
+
+  <div class="two" style="margin-top:14px">
+    <div class="card">
+      <h3>What you type on the website</h3>
+      <div class="src">how the drill is set up — you pick this</div>
+      <p>How many storms to practice on, how long each storm is, how many expensive plans are allowed, and how harshly we punish “thinking when we shouldn’t.” None of this is a voltage or a node.</p>
+    </div>
+    <div class="card">
+      <h3>What the gate sees at one question</h3>
+      <div class="src">one step inside one storm — M2 + fake M1</div>
+      <p>Right now, this second: how unsure is M2 (<span class="mono">u</span>), is it a cyclone or a blackout, how bad is the hazard, which nodes are at risk. Then it answers S1 or S2. That answer is what you want to watch, not the form.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>What is learned — one sentence</h2>
+  <div class="callout ok">
+    <span class="tag">architecture, not a guess</span>
+    <p>
+      <strong>Only the gate is trained.</strong> <span class="mono">policy.py</span> is a 2-action
+      REINFORCE net: pick System 1 or System 2. That is the “toy meta-policy.” System 1 is
+      rule-based. System 2 is a hand-written stand-in for a real (non-ML) survival optimizer.
+      The project’s own design rule: ML only where no adequate rule exists —
+      forecast vulnerability (M1), isolate epistemic uncertainty (M2), <em>learn when to
+      deliberate</em> (the gate). Not learn the control actions.
+      Source: <span class="mono">docs/architecture/overview.md</span>,
+      <span class="mono">module3.proto</span> comment on ProcessPath.
+    </p>
+  </div>
+</section>
+
+<section id="form">
+  <h2>The words on the form, in English</h2>
+  <p style="margin:0 0 12px; color:var(--muted); font-size:14px; max-width:72ch;">
+    You are not typing grid data. You are setting up a practice session for the gate
+    (“when should I spend System 2?”). Defaults in brackets.
+  </p>
+  <table>
+    <tr><th>Form says</th><th>In English</th><th>Default</th></tr>
+    <tr>
+      <td class="k">Seed</td>
+      <td>
+        A lucky number for the random fake storms. Seed 0 always invents the <em>same</em> 150 storms.
+        Seed 7 invents a different set. That is all “replayable” means: run it twice, get the same drill,
+        so you can debug. It is not a measurement from the microgrid.
+      </td>
+      <td class="k">0</td>
+    </tr>
+    <tr>
+      <td class="k">Episode</td>
+      <td>
+        <strong>One fake storm, start to finish.</strong> Calm at the beginning, extreme at the end, then stop.
+        Not a real event. Not “eval.” Just one practice (or test) story.
+      </td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td class="k">Episode length</td>
+      <td>
+        How many times during <em>that one storm</em> the gate is asked “S1 or S2?”
+        80 means: 80 questions, then the storm is over. Each question is one row of fake M1
+        (how bad is it, which nodes) plus one row of M2 (<span class="mono">u</span>, cyclone vs blackout).
+        Those 80 questions are the “gating steps.” Nothing mystical.
+      </td>
+      <td class="k">80</td>
+    </tr>
+    <tr>
+      <td class="k">Budget / episode</td>
+      <td>
+        How many of those 80 questions are allowed to be answered with System 2.
+        45 means: you may think hard 45 times this storm. The 46th time the code
+        ignores the gate and forces System 1. Like 45 expensive phone calls on a prepaid card.
+      </td>
+      <td class="k">45</td>
+    </tr>
+    <tr>
+      <td class="k">Train episodes</td>
+      <td>
+        How many fake storms we <em>practice</em> on. 150 storms × 80 questions = 12,000
+        “S1 or S2?” answers used to nudge the net. This is “how long to train” —
+        train <strong>the gate</strong>, not System 1, not System 2.
+      </td>
+      <td class="k">150</td>
+    </tr>
+    <tr>
+      <td class="k">Eval episodes</td>
+      <td>
+        After practice, we <strong>stop changing the net</strong> (“frozen policy” =
+        the student puts the pencil down) and run 12 more storms just to score it.
+        Those 12 are what the charts average. If we kept training during this part,
+        we would be grading homework we let it copy.
+      </td>
+      <td class="k">12</td>
+    </tr>
+    <tr>
+      <td class="k">Deliberation cost</td>
+      <td>
+        A points fine every time the gate picks System 2. Default 0.10 off the score.
+        That is the “toll” for expensive thinking. It is a number we invented so the
+        gate does not pick S2 on every question. It is not a real millisecond. The
+        2 ms / 18 ms in the log are also made up, for the contract.
+      </td>
+      <td class="k">0.10</td>
+    </tr>
+    <tr>
+      <td class="k">Benefit scale</td>
+      <td>
+        How many points you <em>gain</em> when you correctly pick S2 on a cyclone-like step.
+        Must be bigger than the toll, or the gate never pays to think.
+      </td>
+      <td class="k">4.0</td>
+    </tr>
+    <tr>
+      <td class="k">Sensing penalty</td>
+      <td>
+        Extra fine if the gate picks S2 during a blackout (missing data).
+        −1.2 means “you just wasted an expensive plan on a grid you cannot see.”
+      </td>
+      <td class="k">−1.2</td>
+    </tr>
+  </table>
+  <p style="margin:12px 0 0; color:var(--dim); font-size:12.5px;">
+    Are these auto-generated? <strong>No.</strong> You (or the defaults) set them.
+    What <em>is</em> auto-generated when you click Run: the fake storms themselves
+    (<span class="mono">synthetic_context.py</span>) and the per-step
+    <span class="mono">u</span> / trigger_reason draws from Duwaragie’s file
+    (<span class="mono">m2_stream.py</span>).
+  </p>
+</section>
+
+<section id="m2">
+  <h2>What the fuck is m2_stream.py</h2>
+  <div class="callout ok">
+    <span class="tag">it is a file, not a live socket</span>
+    <p>
+      M2 (Duwaragie) published a JSONL mock: one JSON object per line, schema
+      <span class="mono">m2-out/0.3</span>. A copy lives at
+      <span class="mono">sample_m2_to_m3.jsonl</span> next to the M3 code.
+      <span class="mono">m2_stream.py</span> does two jobs: <strong>load</strong> that file,
+      then <strong>replay</strong> it — bootstrap-resample with tiny jitter — so an 80-step
+      episode can be longer than the file. It does not import M2’s Python. It does not call M2
+      over the network. When M2 is live, this file gets replaced by the real stream; the field
+      names stay the same.
+    </p>
+  </div>
+
+  <p style="margin:14px 0 8px; color:var(--muted); font-size:14px;">What one M2 record actually contains (from the committed file):</p>
+  <pre>{
+  "epistemic_uncertainty": 1.0,          // u  — how untrustworthy, 0..1
+  "trigger_reason": "value",             // none | value | sensing | both
+  "competence_drop": true,               // did either axis fire
+  "observed_fraction": 0.42857,          // share of M1 features that were QUALITY_OBSERVED
+  "state_class": 0,                      // argmax safety class
+  "class_probabilities": [0.33, 0.33, 0.33],
+  "aleatoric_proxy": 0.0,                // loaded, not used by the gate
+  "schema_version": "m2-out/0.3"
+}</pre>
+
+  <table style="margin-top:16px">
+    <tr><th>trigger_reason</th><th>Plain meaning</th><th>What the gate is taught to do</th></tr>
+    <tr><td class="k">none</td><td>ordinary state, data is there</td><td>stay S1 unless severity is extreme</td></tr>
+    <tr><td class="k">value</td><td>cyclone-like: state unlike training. u ≈ 1</td><td>escalate to S2 when it is actually bad</td></tr>
+    <tr><td class="k">sensing</td><td>comms blackout: we cannot see. observed_fraction under the floor</td><td><strong>stay S1</strong> — thinking on absent data buys nothing</td></tr>
+    <tr><td class="k">both</td><td>cyclone and the radios died</td><td>escalate (worst case)</td></tr>
+  </table>
+  <p style="margin:12px 0 0; color:var(--dim); font-size:12.5px;">
+    Replay also <em>pairs</em> the reason with M1 severity: severe/extreme steps are more likely to draw a
+    <span class="mono">value</span> row, calm steps a <span class="mono">none</span> row. Still only published M2 numbers, jittered.
+  </p>
+</section>
+
+<section id="m1">
+  <h2>synthetic_context.py — the fake M1</h2>
+  <p style="margin:0 0 12px; color:var(--muted); font-size:14px; max-width:72ch;">
+    Zayan’s live SystemContext is not wired yet. This file invents an episode that
+    <em>looks like</em> <span class="mono">module1.proto</span>’s SystemContext so the gate can train.
+    One episode is four quarters: normal → elevated → severe → extreme.
+  </p>
+  <table>
+    <tr><th>Field</th><th>What it is</th><th>Who will own it for real</th></tr>
+    <tr>
+      <td class="k">severity</td>
+      <td>normal / elevated / severe / extreme. Drives how bad the episode feels.</td>
+      <td>M1 SystemContext</td>
+    </tr>
+    <tr>
+      <td class="k">max_node_vulnerability</td>
+      <td>0..1 draw in a range that grows with severity (normal 0–0.20, extreme 0.75–1.0). This is what S1 and S2 actually shed against.</td>
+      <td>M1</td>
+    </tr>
+    <tr>
+      <td class="k">top_at_risk_nodes</td>
+      <td>Which nodes (N1–N12) are named as at-risk. Count grows with severity (1, 3, 5, 8).</td>
+      <td>M1</td>
+    </tr>
+    <tr>
+      <td class="k">time_to_hazard_onset_min</td>
+      <td>Counts down from +30 min, crosses 0 mid-episode, goes negative once the hazard has arrived. Fed to the gate as one of the 12 numbers. Controllers do not read it.</td>
+      <td>M1</td>
+    </tr>
+    <tr>
+      <td class="k">mean_node_vulnerability</td>
+      <td>Generated, currently unused by the gate and by S1/S2.</td>
+      <td>M1</td>
+    </tr>
+  </table>
+</section>
+
+<section id="priority">
+  <h2>priority.py — the critical-node map from the meeting</h2>
+  <p style="margin:0 0 12px; color:var(--muted); font-size:14px; max-width:72ch;">
+    A frozen lookup, not learned. Both controllers import it. Tier 1 is never shed.
+  </p>
+  <table>
+    <tr><th>Nodes</th><th>Tier</th><th>Meaning in the meeting</th></tr>
+    <tr><td class="k">N1, N2, N3</td><td>1</td><td>Critical — hospitals / essential load. S1 skips them. S2 skips them. Shedding one is treated as a malformed action.</td></tr>
+    <tr><td class="k">N4, N5, N6</td><td>2</td><td>Important. Shed only after tier 3, and less aggressively.</td></tr>
+    <tr><td class="k">N7 … N12</td><td>3</td><td>Shedable. First in line.</td></tr>
+  </table>
+  <p style="margin:12px 0 0; color:var(--dim); font-size:12.5px;">
+    This is ordinary under-frequency / priority load-shedding practice (utilities never drop hospitals first),
+    not an ML paper. In the live system this map should come from M1’s topology
+    (<span class="mono">Node.critical_load</span> in module1.proto), not a Python dict.
+  </p>
+</section>
+
+<section id="obs">
+  <h2>The actual gate input — 12 numbers, in order</h2>
+  <p style="margin:0 0 12px; color:var(--muted); font-size:14px; max-width:72ch;">
+    Built in <span class="mono">gating_env.py → _build_obs</span>. This is what
+    <span class="mono">Linear(12, 32)</span> consumes. Index is 0-based.
+  </p>
+  <table>
+    <tr><th>#</th><th>Value</th><th>From</th><th>Why the net gets it</th></tr>
+    <tr><td class="k">0</td><td>epistemic_uncertainty u</td><td>M2</td><td>how untrustworthy, as a magnitude</td></tr>
+    <tr><td class="k">1</td><td>reason_value flag 0/1</td><td>M2 trigger_reason ∈ {value, both}</td><td>the cyclone axis</td></tr>
+    <tr><td class="k">2</td><td>reason_sensing flag 0/1</td><td>M2 trigger_reason ∈ {sensing, both}</td><td>the blackout axis</td></tr>
+    <tr><td class="k">3</td><td>state_class / 2</td><td>M2</td><td>which safety class M2 thinks it is</td></tr>
+    <tr><td class="k">4–6</td><td>class_probabilities[0..2]</td><td>M2</td><td>the Dirichlet-mean distribution over classes</td></tr>
+    <tr><td class="k">7</td><td>max_node_vulnerability</td><td>M1 mock</td><td>how physically exposed the worst node is</td></tr>
+    <tr><td class="k">8</td><td>severity / 3</td><td>M1 mock</td><td>0, 0.33, 0.66, 1.0 for the four stages</td></tr>
+    <tr><td class="k">9</td><td>time_to_hazard clipped ±30, / 30</td><td>M1 mock</td><td>is the hazard still coming, or already here</td></tr>
+    <tr><td class="k">10</td><td>budget_remaining / budget_total</td><td>env, not M1/M2</td><td>how many S2 calls are left this episode</td></tr>
+    <tr><td class="k">11</td><td>observed_fraction</td><td>M2</td><td>how much of the state was actually measured</td></tr>
+  </table>
+  <p style="margin:12px 0 0; color:var(--dim); font-size:12.5px;">
+    Competence_drop is <em>not</em> a 13th input — the two reason flags already encode it.
+    Aleatoric_proxy is loaded from the JSONL and ignored.
+  </p>
+</section>
+
+<section id="gate">
+  <h2>policy.py is the gate — how it chooses S1 vs S2</h2>
+  <p style="margin:0 0 12px; color:var(--muted); font-size:14px; max-width:72ch;">
+    There is no if/else at decision time. There is a tiny neural net that emits two scores,
+    then a coin-flip (training) or a greedy pick (eval). It was <em>started</em> from an if/else
+    by behaviour cloning, then REINFORCE nudged the weights.
+  </p>
+
+  <figure>
+    <svg viewBox="0 0 900 220" role="img" aria-label="MLP: 12 inputs through Linear, Tanh, Linear, Tanh, Linear to two logits, then softmax to S1 vs S2 probabilities.">
+      <rect x="20" y="70" width="130" height="80" rx="8" fill="var(--surface)" stroke="currentColor" stroke-opacity="0.3"/>
+      <text x="85" y="105" text-anchor="middle" font-size="12" font-weight="600" fill="currentColor">12 numbers</text>
+      <text x="85" y="124" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.55">the observation</text>
+      <line x1="150" y1="110" x2="188" y2="110" stroke="currentColor" stroke-opacity="0.5"/>
+      <rect x="190" y="40" width="150" height="140" rx="8" fill="var(--violet-soft)" stroke="var(--violet)"/>
+      <text x="265" y="70" text-anchor="middle" font-size="12" font-weight="600" fill="var(--violet)">Linear 12→32</text>
+      <text x="265" y="92" text-anchor="middle" font-size="11" fill="currentColor">Tanh</text>
+      <text x="265" y="114" text-anchor="middle" font-size="12" font-weight="600" fill="var(--violet)">Linear 32→32</text>
+      <text x="265" y="136" text-anchor="middle" font-size="11" fill="currentColor">Tanh</text>
+      <text x="265" y="158" text-anchor="middle" font-size="12" font-weight="600" fill="var(--violet)">Linear 32→2</text>
+      <line x1="340" y1="110" x2="378" y2="110" stroke="currentColor" stroke-opacity="0.5"/>
+      <rect x="380" y="55" width="150" height="110" rx="8" fill="var(--surface)" stroke="currentColor" stroke-opacity="0.3"/>
+      <text x="455" y="90" text-anchor="middle" font-size="12" font-weight="600" fill="currentColor">2 logits</text>
+      <text x="455" y="110" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="currentColor">z_S1 , z_S2</text>
+      <text x="455" y="132" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.55">not probabilities yet</text>
+      <line x1="530" y1="110" x2="568" y2="110" stroke="currentColor" stroke-opacity="0.5"/>
+      <rect x="570" y="40" width="150" height="140" rx="8" fill="var(--surface)" stroke="currentColor" stroke-opacity="0.3"/>
+      <text x="645" y="78" text-anchor="middle" font-size="12" font-weight="600" fill="currentColor">softmax</text>
+      <text x="645" y="102" text-anchor="middle" font-size="11" fill="currentColor">P(S1), P(S2)</text>
+      <text x="645" y="128" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.6">train: sample</text>
+      <text x="645" y="146" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.6">eval: argmax</text>
+      <line x1="720" y1="90" x2="758" y2="70" stroke="var(--blue)" stroke-opacity="0.8"/>
+      <line x1="720" y1="130" x2="758" y2="150" stroke="var(--amber)" stroke-opacity="0.8"/>
+      <text x="820" y="74" text-anchor="middle" font-size="13" font-weight="600" fill="var(--blue)">S1</text>
+      <text x="820" y="154" text-anchor="middle" font-size="13" font-weight="600" fill="var(--amber)">S2</text>
+    </svg>
+    <figcaption>MLPPolicy in policy.py. Hidden width 32 is a toy size on purpose — the observation is 12-d and the action is 1 bit.</figcaption>
+  </figure>
+
+  <h3 style="margin-top:22px">What each function in that file is</h3>
+  <table>
+    <tr><th>Name</th><th>What it does, in English</th></tr>
+    <tr>
+      <td class="k">nn.Linear(a, b)</td>
+      <td>
+        A learned matrix multiply: y = xWᵀ + b. Maps an a-vector to a b-vector.
+        The entries of W and b are the things REINFORCE updates.
+        First layer: 12×32 weights. Last layer: 32×2 weights — two scores, one per action.
+      </td>
+    </tr>
+    <tr>
+      <td class="k">nn.Tanh()</td>
+      <td>
+        tanh(x) = (eˣ − e⁻ˣ) / (eˣ + e⁻ˣ). Squashes every number into (−1, 1).
+        Classic MLP activation (LeCun et al., Efficient BackProp). Not ReLU here — tanh keeps
+        signed features (u, reason flags, budget) from collapsing to “on/off.”
+      </td>
+    </tr>
+    <tr>
+      <td class="k">forward(x)</td>
+      <td>Run the three Linear layers. Returns raw logits, not probabilities.</td>
+    </tr>
+    <tr>
+      <td class="k">Categorical(logits)</td>
+      <td>
+        Softmax the two logits into P(S1), P(S2), then treat that as a coin.
+        Training calls <span class="mono">sample()</span> so the net explores.
+        Eval in run_demo / evaluate uses <span class="mono">argmax</span> — always the more likely action, no coin.
+      </td>
+    </tr>
+    <tr>
+      <td class="k">act(obs)</td>
+      <td>forward → sample → return (action as 0 or 1, log π(a|s)). The log-prob is what REINFORCE multiplies by return.</td>
+    </tr>
+    <tr>
+      <td class="k">action_probs(obs)</td>
+      <td>Softmax only. For inspection, not used on the hot path.</td>
+    </tr>
+    <tr>
+      <td class="k">reinforce_update(...)</td>
+      <td>
+        After a batch of episodes: for each step, take the remaining sum of rewards Gₜ,
+        standardise those returns inside the episode, then
+        <span class="mono">loss = −log π(a|s) · Ĝ</span>.
+        Gradient ascent on expected return (Williams 1992). Gradients clipped at 1.0.
+        Adam steps the weights (Kingma &amp; Ba 2015).
+      </td>
+    </tr>
+  </table>
+
+  <div class="math">
+    REINFORCE in this file, undiscounted:<br/>
+    Gₜ = rₜ + rₜ₊₁ + … + r_T &nbsp;&nbsp; then &nbsp;&nbsp; Ĝ = (G − mean G) / std G<br/>
+    θ ← θ + α · Ĝ · ∇θ log πθ(aₜ | sₜ)
+  </div>
+  <p style="margin:10px 0 0; color:var(--dim); font-size:12.5px;">
+    Variance reduction is per-trajectory return standardisation — there is no moving-average
+    baseline in the advantage. Training prints <span class="mono">mean_R</span> as a diagnostic
+    only; it does not enter the gradient.
+  </p>
+
+  <h3 style="margin-top:22px">The if/else it was cloned from — not the live rule</h3>
+  <p style="margin:0 0 8px; color:var(--muted); font-size:13.5px;">
+    40 warm-start episodes copy this heuristic into the net (behaviour cloning / Pomerleau 1991).
+    After that, REINFORCE is free to drift. Eval still usually tracks it closely.
+  </p>
+  <table>
+    <tr><th>If the 12 numbers look like…</th><th>heuristic_action returns</th></tr>
+    <tr><td>sensing flag on, value flag off (blackout only)</td><td class="k" style="color:var(--blue)">0 = S1</td></tr>
+    <tr><td>value flag on, severity ≥ severe (index ≥ 0.66)</td><td class="k" style="color:var(--amber)">1 = S2</td></tr>
+    <tr><td>value flag on, severity ≥ elevated, u ≥ 0.85</td><td class="k" style="color:var(--amber)">1 = S2</td></tr>
+    <tr><td>no value flag, severity extreme, u ≥ 0.5</td><td class="k" style="color:var(--amber)">1 = S2</td></tr>
+    <tr><td>anything else</td><td class="k" style="color:var(--blue)">0 = S1</td></tr>
+  </table>
+  <p style="margin:10px 0 0; color:var(--dim); font-size:12.5px;">
+    Plus a hard override the net cannot beat: if <span class="mono">budget_remaining ≤ 0</span>,
+    <span class="mono">GatingEnv.step</span> forces S1 and sets <span class="mono">budget_exhausted_fallback=true</span>.
+    That is not an agent action. It is the budget wall.
+  </p>
+</section>
+
+<section id="s1">
+  <h2>System 1 — what happens inside, and a real output</h2>
+  <div class="card" style="margin-bottom:14px">
+    <div class="src">system1.py · origin = SYSTEM1 · rule-based, not trained</div>
+    <p>
+      Reads only <span class="mono">max_node_vulnerability</span>, <span class="mono">top_at_risk_nodes</span>,
+      and whether <span class="mono">trigger_reason</span> is sensing/both. Never reads u.
+      Sheds lowest-priority nodes first. Never touches breakers or dispatch.
+      Under sensing, <span class="mono">shed_scale = 0.45</span> instead of 0.8 — cut less, because it cannot see the grid.
+    </p>
+  </div>
+  <div class="plan s1">
+    <div class="head">
+      <span class="pill">SYSTEM 1 — from sample_m3_to_m4.jsonl</span>
+      <span class="mono" style="font-size:11px; color:var(--dim)">vuln = 0.14 · u = 0.034 · reason = none</span>
+    </div>
+    <div class="body">
+      <div class="plan-row"><span class="label">breakers</span><span class="empty">none</span></div>
+      <div class="plan-row"><span class="label">load_shed</span><span>Node <b>N8</b> — shed 11.2% (tier 3)</span></div>
+      <div class="plan-row"><span class="label">dispatch</span><span class="empty">none</span></div>
+      <div class="plan-row"><span class="label">rationale</span><span class="mono">S1 reactive shed vuln=0.14</span></div>
+    </div>
+  </div>
+  <p style="margin:10px 0 0; color:var(--dim); font-size:12.5px;">
+    Sensing-fallback example in the same file: rationale
+    <span class="mono">S1 sensing-fallback shed vuln=0.21</span>, still no breakers, still no dispatch.
+    That is the entire S1 vocabulary.
+  </p>
+</section>
+
+<section id="s2">
+  <h2>System 2 — what happens inside, and a real output</h2>
+  <div class="callout argue" style="margin-bottom:14px">
+    <span class="tag">naming collision, corrected</span>
+    <p>
+      System 2 is <strong>not</strong> the toy meta-RL. The toy meta-RL is the gate.
+      <span class="mono">system2.py</span> is a hand-written stand-in for a deliberative survival
+      optimizer: protect tier-1, shed less total, bump diesel/BESS dispatch, keep a critical
+      breaker closed. Zero learning. The intended replacement is a real optimizer that proposes
+      the same three lists — <em>not</em> a second neural net, and <em>not</em> an OpenDSS caller
+      (only M4 may open the digital twin).
+    </p>
+  </div>
+  <div class="plan s2">
+    <div class="head">
+      <span class="pill">SYSTEM 2 — from sample_m3_to_m4.jsonl</span>
+      <span class="mono" style="font-size:11px; color:var(--dim)">vuln = 0.63 · u = 1.0 · reason = value</span>
+    </div>
+    <div class="body">
+      <div class="plan-row"><span class="label">breakers</span><span>Edge <b>E_crit_1</b> — CLOSE</span></div>
+      <div class="plan-row"><span class="label">load_shed</span><span>Node <b>N11</b> — shed 25.0% (tier 3)<br/>Node <b>N8</b> — shed 9.8% (tier 3)</span></div>
+      <div class="plan-row"><span class="label">dispatch</span><span>Node <b>N4</b> — 147.4 kW, 10.0 kVAR</span></div>
+      <div class="plan-row"><span class="label">rationale</span><span class="mono">S2 survival opt vuln=0.63 protect-tier1</span></div>
+    </div>
+  </div>
+  <p style="margin:10px 0 0; color:var(--dim); font-size:12.5px;">
+    Dispatch formula in the stand-in: <span class="mono">p_kw = 50 + 150 × vuln + Uniform(-5, 5)</span>.
+    That jitter is why two S2 plans with similar vuln are not identical. Reads only vulnerability
+    and the at-risk node list. Never reads u or trigger_reason.
+  </p>
+</section>
+
+<section id="gym">
+  <h2>Why there is a Gym environment</h2>
+  <p style="margin:0 0 12px; color:var(--muted); font-size:14px; max-width:72ch;">
+    Gymnasium (Towers et al. 2024; successor of OpenAI Gym) is the standard wrapper for
+    “agent takes an action, world returns next observation + reward.”
+    <span class="mono">GatingEnv</span> is that wrapper for the 2-action MDP.
+    It is not a power-system simulator.
+  </p>
+  <table>
+    <tr><th>Gym piece</th><th>In this module</th></tr>
+    <tr><td class="k">observation_space</td><td>Box of length 12 (the vector above)</td></tr>
+    <tr><td class="k">action_space</td><td>Discrete(2) — 0 = S1, 1 = S2</td></tr>
+    <tr><td class="k">reset()</td><td>New 80-step M1 scenario + resampled M2 stream, budget refilled</td></tr>
+    <tr><td class="k">step(action)</td><td>Run S1 or S2, score a reward, advance one step, maybe truncate at episode_len</td></tr>
+    <tr><td class="k">info dict</td><td>Everything the dashboard later shows: proposed plan, u, reason, benefit, cost, mock verdict</td></tr>
+  </table>
+  <p style="margin:12px 0 0; color:var(--dim); font-size:12.5px;">
+    Sutton &amp; Barto ch. 3 is the MDP language (state, action, reward, episode).
+    Gym is just the Python API for that loop. Without it you would write the same for-loop by hand;
+    REINFORCE does not require Gym, the starter used it so the env is a single object.
+  </p>
+</section>
+
+<section id="reward">
+  <h2>Where the reporting / reward sits — after M4, not before</h2>
+  <div class="callout argue">
+    <span class="tag">argument, not a guess</span>
+    <p>
+      The live pipeline is: <strong>M3 proposes → M4 judges → that verdict feeds back into M3’s
+      cost model.</strong> The contract register in <span class="mono">docs/roadmap.md</span>
+      already says so: “Approve/reject decision + reason | owner M4 | consumer M3.”
+      <span class="mono">M3_TO_M4_CONTRACT.md</span> says a REJECT should “eventually feed back
+      as deliberation-cost pressure, not just a discarded action.”
+    </p>
+    <p>
+      So the reporting signal for REINFORCE belongs <strong>after the judgment</strong>.
+      If you score the gate <em>before</em> M4, you are training “did we pick the heuristic we
+      already wrote,” not “did the action survive physics.” That is the wrong objective.
+    </p>
+    <p>
+      Therefore <span class="mono">verifier.py / mock_verify</span> is a <em>training-time stand-in
+      for Hariswara</em>, not a fifth pipeline stage and not something to show as “the verify step.”
+      Deleting the file today, with M4 not live, would just silently drop
+      <span class="mono">reject_penalty</span> from the reward — the gate would stop being
+      punished for S1-under-extreme and for shedding tier-1. Keep the file until real M4
+      verdicts replace it. Do not display it as Module 3’s job.
+    </p>
+  </div>
+
+  <p style="margin:16px 0 8px; color:var(--muted); font-size:14px;">What the step reward is, today, inside gating_env.py:</p>
+  <div class="math">
+    r = benefit − deliberation_cost − reject_penalty<br/><br/>
+    benefit is cause-aware:<br/>
+    · S2 on sensing-only → sensing_escalation_penalty (−1.2)<br/>
+    · S2 on a calm, sure, non-value step → needless_escalation_penalty<br/>
+    · S2 on value/both → benefit_scale × severity × u&nbsp;&nbsp;(the “correct escalate” payoff)<br/>
+    · S1 on value/both when severity is already severe → −missed_escalation_penalty<br/>
+    · otherwise 0<br/><br/>
+    reject_penalty (1.5) fires only when mock_verify says REJECT.
+    In the live system that term is M4’s verdict, arriving after the action was proposed.
+  </div>
+</section>
+
+<section id="eval">
+  <h2>Who does the evaluation</h2>
+  <p style="margin:0 0 12px; color:var(--muted); font-size:14px; max-width:72ch;">
+    Not M4. Not the dashboard. <span class="mono">m3_evaluate.py</span>, called at the end of
+    <span class="mono">run_demo.py</span>, after training freezes.
+  </p>
+  <ol class="fn">
+    <li><strong>always-S1 baseline</strong> — every step action=0. A dumb “never think” policy.</li>
+    <li><strong>always-S2 baseline</strong> — every step action=1, until the budget wall forces S1. A dumb “always think” policy.</li>
+    <li><strong>u-threshold baseline</strong> — escalate iff u &gt; trigger_threshold (0.40). Ignores trigger_reason, so it deliberates on blackouts. The “why not just a threshold?” comparison.</li>
+    <li><strong>trained policy</strong> — greedy argmax of the net. Must beat all three on total reward, and spend ≤ always-S2 on average deliberation cost.</li>
+    <li><strong>escalation by severity</strong> — fraction of steps that ran S2, sensing-only dropped so blackouts don’t break the curve. Thesis check: normal ≤ elevated ≤ severe ≤ extreme.</li>
+    <li><strong>escalation by trigger_reason</strong> — sensing should sit at 0; value/both should be high.</li>
+  </ol>
+  <p style="margin:12px 0 0; color:var(--dim); font-size:12.5px;">
+    The dashboard charts are exactly those five numbers, averaged over “Eval episodes.”
+    The decision log under them is one extra frozen episode, emitted as ProposedControlAction + GatingDecision pairs.
+    Hariswara’s real verifier only ever sees the action; the M2 fields and the mock verdict in the expander are dashboard-only context.
+  </p>
+</section>
+
+<section id="files">
+  <h2>File map — what each file is for</h2>
+  <table>
+    <tr><th>File</th><th>Role</th><th>Learned?</th></tr>
+    <tr><td class="file">policy.py</td><td>The gate. MLP + REINFORCE.</td><td>yes — the only yes</td></tr>
+    <tr><td class="file">system1.py</td><td>Cheap reactive controller.</td><td>no</td></tr>
+    <tr><td class="file">system2.py</td><td>Stand-in survival optimizer.</td><td>no</td></tr>
+    <tr><td class="file">priority.py</td><td>N1–N3 critical, N4–N6 important, rest shedable.</td><td>no</td></tr>
+    <tr><td class="file">synthetic_context.py</td><td>Fake M1 SystemContext episode.</td><td>no</td></tr>
+    <tr><td class="file">m2_stream.py</td><td>Load + resample Duwaragie’s JSONL.</td><td>no — M2 trained that data</td></tr>
+    <tr><td class="file">gating_env.py</td><td>Gym MDP that zips the two streams, calls S1/S2, scores r.</td><td>no</td></tr>
+    <tr><td class="file">run_demo.py</td><td>Warm-start, train, evaluate, write the sample / dashboard JSON.</td><td>drives the learning</td></tr>
+    <tr><td class="file">m3_evaluate.py</td><td>always-S1 / always-S2 / u-threshold baselines and the two escalation tables.</td><td>no</td></tr>
+    <tr><td class="file">verifier.py</td><td>Fake M4 for training reward only. Not a controller. Not the live path.</td><td>no — delete when M4 is live, not before</td></tr>
+    <tr><td class="file">config.yaml</td><td>The knobs the dashboard form overrides.</td><td>—</td></tr>
+    <tr><td class="file">sample_m2_to_m3.jsonl</td><td>Vendored M2 mock. Keep in sync with module2_auq_engine.</td><td>—</td></tr>
+    <tr><td class="file">sample_m3_to_m4.jsonl</td><td>What Hariswara builds against. Action + decision pairs.</td><td>—</td></tr>
+  </table>
+</section>
+
+<section id="papers">
+  <h2>Papers — where each idea is from</h2>
+  <p style="margin:0 0 12px; color:var(--muted); font-size:14px; max-width:72ch;">
+    Tagged to the specific mechanism in this module, not a dump of “related work.”
+  </p>
+  <table class="paper">
+    <tr><th>In the code</th><th>Paper</th><th>Link</th></tr>
+    <tr>
+      <td>System 1 vs System 2 as two process paths</td>
+      <td>
+        Kahneman, D. (2003). A perspective on judgment and choice. <em>American Psychologist</em>, 58(9), 697–720. Dual-process S1/S2.
+        <div class="why">The names. Not the training algorithm.</div>
+      </td>
+      <td><a href="https://doi.org/10.1037/0003-066X.58.9.697">doi:10.1037/0003-066X.58.9.697</a></td>
+    </tr>
+    <tr>
+      <td>Deliberation cost, budget, “when to think”</td>
+      <td>
+        Russell, S. &amp; Wefald, E. (1991). Principles of metareasoning. <em>Artificial Intelligence</em>, 49(1–3), 361–395.
+        <div class="why">Value of computation. This is why M3 is a gate over two controllers, not a third controller.</div>
+      </td>
+      <td><a href="https://doi.org/10.1016/0004-3702(91)90015-C">doi:10.1016/0004-3702(91)90015-C</a></td>
+    </tr>
+    <tr>
+      <td>The 2-action learned policy (the actual “meta-policy”)</td>
+      <td>
+        Williams, R. J. (1992). Simple statistical gradient-following algorithms for connectionist reinforcement learning. <em>Machine Learning</em>, 8, 229–256. REINFORCE.
+        <div class="why">policy.py’s update. Also Sutton &amp; Barto (2018) ch. 13 for the textbook treatment.</div>
+      </td>
+      <td>
+        <a href="https://doi.org/10.1007/BF00992696">doi:10.1007/BF00992696</a><br/>
+        <a href="http://incompleteideas.net/book/the-book-2nd.html">Sutton &amp; Barto 2e</a>
+      </td>
+    </tr>
+    <tr>
+      <td>Warm-start copying the heuristic into the net</td>
+      <td>
+        Pomerleau, D. (1991). Efficient Training of Artificial Neural Networks for Autonomous Navigation. <em>Neural Computation</em>, 3(1), 88–97. Behaviour cloning.
+        <div class="why">The 40 BC episodes in run_demo.py, before REINFORCE.</div>
+      </td>
+      <td><a href="https://doi.org/10.1162/neco.1991.3.1.88">doi:10.1162/neco.1991.3.1.88</a></td>
+    </tr>
+    <tr>
+      <td>u = epistemic_uncertainty, Dirichlet class_probabilities</td>
+      <td>
+        Sensoy, M., Kaplan, L. &amp; Kandemir, M. (2018). Evidential Deep Learning to Quantify Classification Uncertainty. <em>NeurIPS</em>.
+        <div class="why">M2’s job. M3 only consumes u and the reason flags. Formula in M2’s contract: u = K / (Σ evidence · observed_fraction + K).</div>
+      </td>
+      <td><a href="https://arxiv.org/abs/1806.01768">arXiv:1806.01768</a></td>
+    </tr>
+    <tr>
+      <td>GatingEnv, reset/step, Discrete(2)</td>
+      <td>
+        Towers, M. et al. (2024). Gymnasium: A Standard Interface for Reinforcement Learning Environments.
+        <div class="why">The wrapper API. The MDP itself is Sutton &amp; Barto ch. 3.</div>
+      </td>
+      <td><a href="https://arxiv.org/abs/2407.17032">arXiv:2407.17032</a></td>
+    </tr>
+    <tr>
+      <td>Adam(lr=0.004) in run_demo.py</td>
+      <td>
+        Kingma, D. P. &amp; Ba, J. (2015). Adam: A Method for Stochastic Optimization. <em>ICLR</em>.
+        <div class="why">The optimiser. Not specific to gating.</div>
+      </td>
+      <td><a href="https://arxiv.org/abs/1412.6980">arXiv:1412.6980</a></td>
+    </tr>
+    <tr>
+      <td>Linear + Tanh MLP</td>
+      <td>
+        LeCun, Y., Bottou, L., Orr, G. &amp; Müller, K. (1998). Efficient BackProp. In <em>Neural Networks: Tricks of the Trade</em>.
+        <div class="why">Tanh as the default squashing hidden unit. No paper claims this 32-wide net is novel.</div>
+      </td>
+      <td><a href="https://doi.org/10.1007/3-540-49430-8_2">doi:10.1007/3-540-49430-8_2</a></td>
+    </tr>
+    <tr>
+      <td>Priority load shed, never drop tier-1</td>
+      <td>
+        Standard utility practice, not an ML result. Closest standards: IEEE C37.117 (underfrequency load shedding) and the critical-load flag on M1’s Node proto.
+        <div class="why">priority.py is a 12-node toy of that map.</div>
+      </td>
+      <td><a href="https://standards.ieee.org/ieee/C37.117/3493/">IEEE C37.117</a></td>
+    </tr>
+    <tr>
+      <td>What this is <em>not</em>: “meta-RL” in the learn-to-learn sense</td>
+      <td>
+        Duan, Y. et al. (2016). RL²: Fast Reinforcement Learning via Slow Reinforcement Learning. <em>arXiv:1611.02779</em>.
+        Wang, J. et al. (2016). Learning to reinforcement learn. <em>arXiv:1611.05763</em>.
+        <div class="why">Those papers learn an RL algorithm that adapts to new MDPs. This module learns a 2-way gate over two fixed controllers. The project name “meta-policy” means metareasoning, not RL². Do not cite Duan/Wang as what policy.py implements.</div>
+      </td>
+      <td>
+        <a href="https://arxiv.org/abs/1611.02779">arXiv:1611.02779</a><br/>
+        <a href="https://arxiv.org/abs/1611.05763">arXiv:1611.05763</a>
+      </td>
+    </tr>
+  </table>
+</section>
+
+<footer class="page">
+  docs/module3-explained.html · read against
+  services/learned/module3_metapolicy · generated to settle the gate / S1 / S2 / M2-stream / reward-timing questions
+</footer>
+
+</div>
+</body>
+</html>
