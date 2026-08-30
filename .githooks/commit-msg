@@ -1,0 +1,11 @@
+#!/bin/sh
+# Reject commits carrying Claude co-authorship / session trailers.
+# Enable with: git config core.hooksPath .githooks
+
+msg_file="$1"
+
+if grep -qiE '^(Co-Authored-By:.*Claude|Claude-Session:)' "$msg_file"; then
+  echo "commit-msg: rejected — commit message contains a Claude attribution trailer" >&2
+  echo "  (Co-Authored-By: Claude / Claude-Session:). Remove it and retry." >&2
+  exit 1
+fi

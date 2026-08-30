@@ -1,0 +1,29 @@
+name: commit-lint
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check-trailers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Reject Claude attribution trailers
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            range="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+          else
+            range="${{ github.event.before }}..${{ github.sha }}"
+            # first push of a new branch has an all-zero "before" SHA
+            case "${{ github.event.before }}" in
+              0000000000000000000000000000000000000000|"") range="${{ github.sha }}" ;;
+            esac
+          fi
+          bad=$(git log "$range" --pretty=%B | grep -iE '^(Co-Authored-By:.*Claude|Claude-Session:)' || true)
+          if [ -n "$bad" ]; then
+            echo "Commit(s) contain a Claude attribution trailer (Co-Authored-By: Claude / Claude-Session:):" >&2
+            echo "$bad" >&2
+            exit 1
+          fi
