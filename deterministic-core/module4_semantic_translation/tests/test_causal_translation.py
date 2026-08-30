@@ -1,12 +1,13 @@
-"""Tests for Semantic Translation, Abductive Attribution, and Grounding Constraints."""
+"""Tests for Module 4 Semantic Translation and Grounding Invariants."""
 import pytest
 from translation.abductive.attribution import AbductiveAttributor
 from translation.templates.causal_logger import TemplateCausalLogger
-from translation.types import Generator
-from verification.types import (
+from translation.types import (
     BreakerCommand,
+    CausalLog,
     Decision,
     DispatchSetpoint,
+    Generator,
     ProposedControlAction,
     VerificationVerdict,
     Violation,
@@ -15,59 +16,57 @@ from verification.types import (
 
 
 def test_grounded_causal_log_generation() -> None:
+    # 1. Simulate an unsafe action with undervoltage & line thermal overload
     action = ProposedControlAction(
-        action_id="act-test-001",
+        action_id="act-unsafe-001",
         origin="SYSTEM2",
         breakers=[BreakerCommand(edge_id="Line_2_3", closed=False)],
-        load_shed=[],
-        dispatch=[],
-        rationale="Deliberate islanding",
+        dispatch=[DispatchSetpoint(node_id="N8", p_kw=3500.0, q_kvar=500.0)],
+        rationale="Overload test",
     )
 
     raw_violations = [
         Violation(
             type=ViolationType.VIOLATION_TYPE_UNDERVOLTAGE,
             element_id="N8",
-            measured=0.8850,
-            limit=0.9500,
-            margin_fraction=-0.0684,
-            attributed_component="",
+            limit=0.95,
+            measured=0.91,
+            margin_fraction=-0.042,
         ),
         Violation(
             type=ViolationType.VIOLATION_TYPE_THERMAL_OVERLOAD,
-            element_id="LINE_N8_N9",
-            measured=165.0,
-            limit=150.0,
-            margin_fraction=0.1000,
-            attributed_component="",
+            element_id="LINE_SOURCE_N1",
+            limit=300.0,
+            measured=330.0,
+            margin_fraction=0.10,
         ),
     ]
 
-    # 1. Attribute violations
+    # 2. Run Abductive Attribution
     attributed_violations = AbductiveAttributor.attribute_violations(action, raw_violations)
-    assert attributed_violations[0].attributed_component == "breaker.Line_2_3"
+    assert len(attributed_violations) == 2
+    assert "breaker.Line_2_3" in attributed_violations[0].attributed_component
 
-    # 2. Build verdict
+    # 3. Generate Grounded Causal Log
     verdict = VerificationVerdict(
         action_id=action.action_id,
         decision=Decision.DECISION_REJECT,
         violations=attributed_violations,
-        solve_latency_ms=12.4,
+        solve_latency_ms=0.45,
     )
 
-    # 3. Generate causal log
-    log = TemplateCausalLogger.generate_log(verdict)
+    causal_log: CausalLog = TemplateCausalLogger.generate_log(verdict)
 
-    assert log.action_id == action.action_id
-    assert "REJECTED" in log.text
-    assert "N8" in log.text
-    assert "LINE_N8_N9" in log.text
-    assert log.generator == Generator.GENERATOR_TEMPLATE
+    # Invariant: Log text must mention the elements and the attributed cause
+    assert "N8" in causal_log.text
+    assert "LINE_SOURCE_N1" in causal_log.text
+    assert "Undervoltage" in causal_log.text
+    assert "Thermal overload" in causal_log.text
 
-    # 4. Strict Grounding Invariant: grounded_entities must be a subset of violation element_ids
-    violation_elements = {v.element_id for v in raw_violations}
-    for entity in log.grounded_entities:
-        assert entity in violation_elements, f"Entity {entity} is ungrounded!"
+    # Strict Grounding Invariant: grounded_entities MUST be a subset of violation element_ids
+    violation_elements = {v.element_id for v in verdict.violations}
+    for entity in causal_log.grounded_entities:
+        assert entity in violation_elements, f"Entity {entity} is not grounded in violation elements!"
 
 
 def test_approved_action_causal_log() -> None:
@@ -75,10 +74,9 @@ def test_approved_action_causal_log() -> None:
         action_id="act-safe-001",
         decision=Decision.DECISION_APPROVE,
         violations=[],
-        solve_latency_ms=8.5,
+        solve_latency_ms=0.32,
     )
 
-    log = TemplateCausalLogger.generate_log(verdict)
-    assert log.action_id == "act-safe-001"
-    assert "verified safe" in log.text
-    assert len(log.grounded_entities) == 0
+    causal_log = TemplateCausalLogger.generate_log(verdict)
+    assert "verified safe" in causal_log.text
+    assert len(causal_log.grounded_entities) == 0

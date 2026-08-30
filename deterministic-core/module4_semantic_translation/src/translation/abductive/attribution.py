@@ -3,8 +3,7 @@
 ZERO ML DEPENDENCIES.
 """
 from typing import List
-from ..types import CausalLog
-from verification.types import ProposedControlAction, Violation, ViolationType
+from ..types import ProposedControlAction, Violation, ViolationType
 
 
 class AbductiveAttributor:

@@ -1,10 +1,74 @@
 """Data types for Module 4 Semantic Translation.
 
-ZERO ML DEPENDENCIES.
+ZERO ML DEPENDENCIES. Mirrors verification and action types without requiring OpenDSS.
 """
 from enum import Enum
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel, Field
+
+
+class Decision(str, Enum):
+    DECISION_UNSPECIFIED = "DECISION_UNSPECIFIED"
+    DECISION_APPROVE = "DECISION_APPROVE"
+    DECISION_REJECT = "DECISION_REJECT"
+
+
+class ViolationType(str, Enum):
+    VIOLATION_TYPE_UNSPECIFIED = "VIOLATION_TYPE_UNSPECIFIED"
+    VIOLATION_TYPE_UNDERVOLTAGE = "VIOLATION_TYPE_UNDERVOLTAGE"
+    VIOLATION_TYPE_OVERVOLTAGE = "VIOLATION_TYPE_OVERVOLTAGE"
+    VIOLATION_TYPE_THERMAL_OVERLOAD = "VIOLATION_TYPE_THERMAL_OVERLOAD"
+    VIOLATION_TYPE_NON_CONVERGENCE = "VIOLATION_TYPE_NON_CONVERGENCE"
+    VIOLATION_TYPE_MALFORMED_ACTION = "VIOLATION_TYPE_MALFORMED_ACTION"
+
+
+class Violation(BaseModel):
+    """Structured physical boundary violation record."""
+    type: ViolationType
+    element_id: str
+    limit: float
+    measured: float
+    margin_fraction: float
+    attributed_component: str = ""
+
+
+class BreakerCommand(BaseModel):
+    edge_id: str
+    closed: bool
+
+
+class LoadShedCommand(BaseModel):
+    node_id: str
+    shed_fraction: float
+    priority_tier: int = 3
+
+
+class DispatchSetpoint(BaseModel):
+    node_id: str
+    p_kw: float
+    q_kvar: float = 0.0
+
+
+class ProposedControlAction(BaseModel):
+    action_id: str
+    origin: str = "SYSTEM1"
+    breakers: List[BreakerCommand] = Field(default_factory=list)
+    load_shed: List[LoadShedCommand] = Field(default_factory=list)
+    dispatch: List[DispatchSetpoint] = Field(default_factory=list)
+    rationale: str = ""
+
+
+class VerificationVerdict(BaseModel):
+    action_id: str
+    decision: Decision
+    violations: List[Violation] = Field(default_factory=list)
+    solve_latency_ms: float = 0.0
+
+
+class RejectionTrace(BaseModel):
+    action_id: str
+    violations: List[Violation] = Field(default_factory=list)
+    severity: float = 0.0
 
 
 class Generator(str, Enum):

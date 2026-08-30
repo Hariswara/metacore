@@ -3,8 +3,7 @@
 ZERO ML DEPENDENCIES.
 """
 from typing import List
-from ..types import CausalLog, Generator
-from verification.types import Decision, VerificationVerdict, Violation, ViolationType
+from ..types import CausalLog, Decision, Generator, VerificationVerdict, Violation, ViolationType
 
 
 class TemplateCausalLogger:
