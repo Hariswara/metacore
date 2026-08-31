@@ -159,7 +159,13 @@ export async function processModule3Gate(): Promise<Module3ProcessResult> {
   return postModule3("/api/module3/process");
 }
 
-async function postModule3<T>(url: string, body?: unknown): Promise<T> {
+// Shared POST + FastAPI error unwrapping. `detail` is a string for our own HTTPExceptions
+// and an array of {msg} for pydantic validation errors.
+async function postJson<T>(
+  url: string,
+  body: unknown,
+  makeError: (detail: string, status: number) => Error,
+): Promise<T> {
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -173,9 +179,56 @@ async function postModule3<T>(url: string, body?: unknown): Promise<T> {
         : Array.isArray(payload?.detail)
           ? payload.detail.map((d: { msg?: string }) => d.msg).join("; ")
           : `request failed with status ${res.status}`;
-    throw new Module3RunError(detail, res.status);
+    throw makeError(detail, res.status);
   }
   return (await res.json()) as T;
+}
+
+async function postModule3<T>(url: string, body?: unknown): Promise<T> {
+  return postJson<T>(url, body, (detail, status) => new Module3RunError(detail, status));
+}
+
+// ---------------------------------------------------------------- Module 2
+// Scores one situation against the trained EDL engine via
+// services/learned/module2_auq_engine/infer_one.py (gateway routers/module2.py).
+
+export class Module2RunError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "Module2RunError";
+  }
+}
+
+export interface Module2RunResult {
+  /** Plain epistemic vacuity u = K/S, quality-blind. */
+  u: number;
+  /** Quality-aware u' — what M3 actually gates on. */
+  u_q: number;
+  /** Total evidence mass S = K + Σe. */
+  evidence: number;
+  observed_fraction: number;
+  trigger: boolean;
+  reason: "none" | "value" | "sensing" | "both";
+  latency_ms: number;
+  baselines: { softmax: number; mc_dropout: number; edl: number };
+  /** "onnx" when the exported graph ran, "torch" when it fell back to the head. */
+  backend: string;
+  /** Calibrated value-axis threshold the trigger compared u against. */
+  value_threshold: number;
+}
+
+export async function runModule2(
+  novelty: number,
+  observedFraction: number,
+): Promise<Module2RunResult> {
+  return postJson<Module2RunResult>(
+    "/api/module2/run",
+    { novelty, observed_fraction: observedFraction },
+    (detail, status) => new Module2RunError(detail, status),
+  );
 }
 
 // Pairs each ProposedControlAction with its GatingDecision (and M2 input / M4 verdict
