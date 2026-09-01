@@ -83,11 +83,6 @@ export default function VerificationRoute() {
                     solving AC power-flow…
                   </span>
                 )}
-                {result?.source === "fallback" && !loading && (
-                  <span className="verification__badge" style={{ color: "var(--amber)", borderColor: "var(--amber)" }}>
-                    offline · demo mode
-                  </span>
-                )}
               </h1>
               <p className="verification__subtitle">
                 Sub-millisecond AC power-flow verification against statutory grid bounds (0.95 &le; V &le; 1.05 pu),
