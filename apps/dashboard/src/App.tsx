@@ -6,12 +6,14 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import GatingRoute from "./routes/gating";
+import UncertaintyRoute from "./routes/uncertainty";
 
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/gating" replace />} />
       <Route path="/gating" element={<GatingRoute />} />
+      <Route path="/uncertainty" element={<UncertaintyRoute />} />
     </Routes>
   );
 }
