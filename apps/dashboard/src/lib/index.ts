@@ -270,11 +270,12 @@ export function pairModule3Decisions(
 
 export interface ViolationDTO {
   type:
-    | "VOLTAGE_UNDERVOLTAGE"
-    | "VOLTAGE_OVERVOLTAGE"
-    | "THERMAL_OVERLOAD"
-    | "SOLVER_NON_CONVERGENCE"
-    | "MALFORMED_ACTION";
+    | "VIOLATION_TYPE_UNSPECIFIED"
+    | "VIOLATION_TYPE_UNDERVOLTAGE"
+    | "VIOLATION_TYPE_OVERVOLTAGE"
+    | "VIOLATION_TYPE_THERMAL_OVERLOAD"
+    | "VIOLATION_TYPE_NON_CONVERGENCE"
+    | "VIOLATION_TYPE_MALFORMED_ACTION";
   element_id: string;
   limit: number;
   measured: number;

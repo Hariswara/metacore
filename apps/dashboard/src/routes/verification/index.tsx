@@ -19,6 +19,10 @@ import "./verification.css";
 
 const SCHEMA_VERSION = "1.0";
 
+function formatViolationType(type: string): string {
+  return type.replace(/^VIOLATION_TYPE_/, "");
+}
+
 export default function VerificationRoute() {
   const [presets, setPresets] = useState<Record<string, Module4Preset>>({});
   const [selectedKey, setSelectedKey] = useState<string>("nominal_safe");
@@ -26,16 +30,24 @@ export default function VerificationRoute() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load presets on mount
+  // Load presets on mount with proper error handling
   useEffect(() => {
-    fetchModule4Presets().then((data) => {
-      setPresets(data);
-      const initialKey = data["nominal_safe"] ? "nominal_safe" : Object.keys(data)[0];
-      if (initialKey && data[initialKey]) {
-        setSelectedKey(initialKey);
-        handleRun(data[initialKey].payload);
-      }
-    });
+    fetchModule4Presets()
+      .then((data) => {
+        setPresets(data);
+        const initialKey = data["nominal_safe"] ? "nominal_safe" : Object.keys(data)[0];
+        if (initialKey && data[initialKey]) {
+          setSelectedKey(initialKey);
+          handleRun(data[initialKey].payload);
+        }
+      })
+      .catch((err) => {
+        setError(
+          err instanceof Error
+            ? `Gateway connection error: ${err.message}`
+            : "Failed to fetch presets from Gateway API",
+        );
+      });
   }, []);
 
   const handleSelectPreset = (key: string) => {
@@ -245,11 +257,56 @@ export default function VerificationRoute() {
               </div>
             </section>
 
-            {/* 4. Nodal Voltage Profile Grid */}
+            {/* 4. Abductive Attribution Breakdown Table (When Violations Occur) */}
+            {result.violations.length > 0 && (
+              <section className="verification__card" style={{ borderColor: "var(--red)" }}>
+                <div className="verification__card-title" style={{ color: "var(--red)" }}>
+                  2. Detected Violations &amp; Abductive Root-Cause Attribution
+                </div>
+                <div className="verification__card-sub">
+                  Physical limits exceeded and the inferred causative component from the proposed control action.
+                </div>
+
+                <table className="verification__violations-table">
+                  <thead>
+                    <tr>
+                      <th>Violation Type</th>
+                      <th>Element ID</th>
+                      <th>Measured Value</th>
+                      <th>Statutory Limit</th>
+                      <th>Margin Fraction</th>
+                      <th>Attributed Component</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.violations.map((v, i) => (
+                      <tr key={i}>
+                        <td className="mono" style={{ fontWeight: 600, color: "var(--red)" }}>
+                          {formatViolationType(v.type)}
+                        </td>
+                        <td className="mono" style={{ fontWeight: 600 }}>{v.element_id}</td>
+                        <td className="mono">{v.measured.toFixed(4)}</td>
+                        <td className="mono">{v.limit.toFixed(4)}</td>
+                        <td className="mono" style={{ color: "var(--red)", fontWeight: 600 }}>
+                          {v.margin_fraction >= 0 ? "+" : ""}{(v.margin_fraction * 100).toFixed(2)}%
+                        </td>
+                        <td className="mono" style={{ color: "var(--amber)", fontWeight: 600 }}>
+                          {v.attributed_component || "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+            )}
+
+            {/* 5. Nodal Voltage Profile Grid */}
             <section className="verification__card">
-              <div className="verification__card-title">2. Bus Voltage Profiles across 3 Islands (OpenDSS AC Power-Flow)</div>
+              <div className="verification__card-title">
+                {result.violations.length > 0 ? "3." : "2."} Bus Voltage Profiles across 3 Islands (OpenDSS AC Power-Flow)
+              </div>
               <div className="verification__card-sub">
-                Per-unit voltage levels across Delft, Analaitivu, and Nainativu island microgrids. Highlighted red if &lt; 0.95 pu or &gt; 1.05 pu.
+                Per-unit voltage levels across Nainativu, Analaitivu, and Delft island microgrids. Highlighted red if &lt; 0.95 pu or &gt; 1.05 pu.
               </div>
 
               <div className="verification__bus-grid">
@@ -285,9 +342,11 @@ export default function VerificationRoute() {
               </div>
             </section>
 
-            {/* 5. Branch Power Flow & Line Loadings */}
+            {/* 6. Branch Power Flow & Line Loadings */}
             <section className="verification__card">
-              <div className="verification__card-title">3. Line Ampacity &amp; Switch Statuses</div>
+              <div className="verification__card-title">
+                {result.violations.length > 0 ? "4." : "3."} Line Ampacity &amp; Switch Statuses
+              </div>
               <div className="verification__card-sub">
                 Distribution branch current flows and thermal loading margins computed by the snapshot AC solver.
               </div>

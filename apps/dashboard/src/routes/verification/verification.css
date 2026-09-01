@@ -5,7 +5,15 @@
   background-color: var(--bg);
   color: var(--text);
   padding: 2rem 1.5rem 4rem;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.verification * {
+  box-sizing: border-box;
+}
+
+.verification .mono {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
 }
 
 .verification__inner {
@@ -58,16 +66,17 @@
 }
 
 .verification__badge--core {
-  background: var(--green-soft);
-  color: var(--green);
-  border-color: var(--green);
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 600;
+  border-color: var(--border);
 }
 
 .verification__subtitle {
+  font-size: 0.875rem;
   color: var(--text-muted);
-  font-size: 0.9rem;
-  line-height: 1.4;
   margin: 0;
+  line-height: 1.4;
 }
 
 .verification__card {
@@ -80,23 +89,20 @@
 .verification__card-title {
   font-size: 1rem;
   font-weight: 600;
-  color: var(--text);
   margin-bottom: 0.25rem;
 }
 
 .verification__card-sub {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
   margin-bottom: 1rem;
 }
 
 .verification__row-label {
   font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-weight: 500;
   color: var(--text-dim);
-  margin: 0.75rem 0 0.4rem;
+  margin-bottom: 0.5rem;
 }
 
 .verification__btns {
@@ -107,60 +113,63 @@
 }
 
 .verification__btn {
-  background: var(--blue);
-  color: var(--bg);
-  border: none;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.825rem;
   font-weight: 500;
-  font-size: 0.85rem;
-  padding: 0.5rem 0.9rem;
   border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .verification__btn:hover {
-  opacity: 0.9;
+  background: var(--surface-3, rgba(255, 255, 255, 0.08));
+  border-color: var(--text-muted);
 }
 
 .verification__btn--ghost {
-  background: var(--surface-2);
-  color: var(--text);
-  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
 }
 
 .verification__btn--ghost:hover {
-  background: var(--border);
+  color: var(--text);
 }
 
 .verification__action-preview {
-  background: var(--surface-2);
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 0.85rem;
-  font-size: 0.85rem;
+  padding: 0.85rem 1rem;
+  font-size: 0.825rem;
 }
 
 .verification__action-meta {
   display: flex;
   gap: 1rem;
-  font-weight: 500;
-  margin-bottom: 0.5rem;
   color: var(--text-muted);
+  margin-bottom: 0.75rem;
+  font-size: 0.8rem;
+  flex-wrap: wrap;
 }
 
 .verification__action-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
-.verification__action-item {
-  font-size: 0.8rem;
-  background: var(--bg);
-  padding: 0.5rem;
-  border-radius: 4px;
+.verification__action-item strong {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-bottom: 0.2rem;
+  text-transform: uppercase;
 }
 
+/* KPI Row */
 .verification__kpi-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -168,20 +177,20 @@
 }
 
 .verification__kpi {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  padding: 1rem;
 }
 
 .verification__kpi-label {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 0.35rem;
 }
 
 .verification__kpi-value {
-  font-size: 1.6rem;
+  font-size: 1.4rem;
   font-weight: 700;
-  color: var(--text);
+  margin-bottom: 0.2rem;
 }
 
 .verification__kpi-value--approve {
@@ -197,22 +206,18 @@
   color: var(--text-dim);
 }
 
-/* Grid Voltage Chart */
+/* Bus Voltage Grid */
 .verification__bus-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 0.75rem;
-  margin-top: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.85rem;
 }
 
 .verification__bus-card {
-  background: var(--surface-2);
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 0.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
+  padding: 0.75rem 0.85rem;
 }
 
 .verification__bus-card--undervolt {
@@ -221,34 +226,34 @@
 }
 
 .verification__bus-card--overvolt {
-  border-color: var(--amber);
-  background: var(--amber-soft);
+  border-color: var(--red);
+  background: var(--red-soft);
 }
 
 .verification__bus-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
   font-size: 0.85rem;
+  margin-bottom: 0.25rem;
 }
 
 .verification__bus-island {
   font-size: 0.75rem;
   color: var(--text-dim);
+  margin-bottom: 0.5rem;
 }
 
 .verification__bus-bar-track {
-  height: 8px;
-  background: var(--bg);
-  border-radius: 4px;
-  position: relative;
+  height: 6px;
+  background: var(--surface-2);
+  border-radius: 3px;
   overflow: hidden;
+  margin-bottom: 0.5rem;
 }
 
 .verification__bus-bar-fill {
   height: 100%;
   background: var(--green);
-  border-radius: 4px;
   transition: width 0.3s ease;
 }
 
@@ -259,29 +264,32 @@
 .verification__bus-footer {
   display: flex;
   justify-content: space-between;
-  font-size: 0.75rem;
-  color: var(--text-muted);
+  font-size: 0.7rem;
+  color: var(--text-dim);
 }
 
-/* Lines Table */
-.verification__lines-table {
+/* Branch Flow Table */
+.verification__lines-table,
+.verification__violations-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
-  margin-top: 0.75rem;
+  font-size: 0.825rem;
 }
 
 .verification__lines-table th,
-.verification__lines-table td {
-  padding: 0.5rem 0.75rem;
+.verification__lines-table td,
+.verification__violations-table th,
+.verification__violations-table td {
+  padding: 0.6rem 0.75rem;
   text-align: left;
   border-bottom: 1px solid var(--border);
 }
 
-.verification__lines-table th {
-  color: var(--text-dim);
-  font-weight: 500;
+.verification__lines-table th,
+.verification__violations-table th {
+  color: var(--text-muted);
   font-size: 0.75rem;
+  font-weight: 500;
   text-transform: uppercase;
 }
 
@@ -290,6 +298,7 @@
   padding: 0.15rem 0.45rem;
   border-radius: 4px;
   font-weight: 600;
+  display: inline-block;
 }
 
 .verification__status-pill--normal {
