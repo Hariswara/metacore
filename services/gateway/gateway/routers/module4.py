@@ -26,7 +26,7 @@ from translation.types import (
     ProposedControlAction as TransProposedAction,
 )
 from verification.firewall.verifier import PhysicsVerifier
-from verification.opendss.circuit import CircuitTwin
+from verification.powerflow.solver import PowerFlowSolver
 from verification.types import (
     BreakerCommand,
     Decision,
@@ -204,13 +204,14 @@ PRESETS: dict[str, dict[str, Any]] = {
 
 
 def _classify_bus_island(bus_name: str) -> str:
+    """Classifies bus according to delft_3island.dss topological node clusters."""
     name = bus_name.upper()
     if name in ("SOURCEBUS", "N1", "N2", "N3"):
-        return "Delft Island (Grid 1)"
+        return "Nainativu Island (Grid 1)"
     if name in ("N4", "N5", "N6"):
         return "Analaitivu Island (Grid 2)"
     if name in ("N8", "N9", "N11", "N12"):
-        return "Nainativu Island (Grid 3)"
+        return "Delft Island (Grid 3)"
     return "Inter-Island Tie"
 
 
@@ -243,13 +244,41 @@ async def verify_action(req: VerifyRequest) -> VerifyResponse:
             rationale=req.rationale,
         )
 
-        # 1. Physics Verification
-        verdict = verifier.verify(action_verif)
+        # 1. Physical Simulation & Limit Evaluation
+        verifier.circuit.reset_to_base()
+        malformed = verifier.applicator.apply_action(action_verif)
+
+        if malformed:
+            violations = malformed
+            decision = Decision.DECISION_REJECT
+            solve_latency_ms = 0.0
+            bus_voltages = verifier.circuit.get_bus_voltages_pu()
+            line_loadings = verifier.circuit.get_line_loadings()
+        else:
+            converged, solve_latency_ms = PowerFlowSolver.solve_snapshot()
+            violations = verifier.limits_checker.check_limits(verifier.circuit, converged)
+            decision = (
+                Decision.DECISION_APPROVE
+                if len(violations) == 0
+                else Decision.DECISION_REJECT
+            )
+            # Capture snapshot electrical state WHILE solver solution is live in memory
+            bus_voltages = verifier.circuit.get_bus_voltages_pu()
+            line_loadings = verifier.circuit.get_line_loadings()
+
+        # Reset circuit to clean base state after capturing solved state
+        verifier.circuit.reset_to_base()
 
         # 2. Abductive Attribution
-        if verdict.violations:
-            attributed = AbductiveAttributor.attribute_violations(action_trans, verdict.violations)
-            verdict.violations = attributed
+        if violations:
+            violations = AbductiveAttributor.attribute_violations(action_trans, violations)
+
+        verdict = verifier._build_verdict(
+            action_id=action_verif.action_id,
+            decision=decision,
+            violations=violations,
+            latency_ms=solve_latency_ms,
+        )
 
         # 3. Severity feedback trace
         trace = verifier.build_rejection_trace(verdict.action_id, verdict.violations)
@@ -257,9 +286,7 @@ async def verify_action(req: VerifyRequest) -> VerifyResponse:
         # 4. Grounded Causal Log
         causal_log = TemplateCausalLogger.generate_log(verdict, include_latency=True)
 
-        # 5. Extract snapshot grid state
-        circuit: CircuitTwin = verifier.circuit
-        bus_voltages = circuit.get_bus_voltages_pu()
+        # 5. Build DTOs for snapshot grid state
         buses_dto: list[GridBusState] = []
         for bus, v_pu in sorted(bus_voltages.items()):
             if v_pu < 0.95:
@@ -277,7 +304,6 @@ async def verify_action(req: VerifyRequest) -> VerifyResponse:
                 )
             )
 
-        line_loadings = circuit.get_line_loadings()
         lines_dto: list[GridLineState] = []
         for line, data in sorted(line_loadings.items()):
             max_amps = data["max_amps"]
