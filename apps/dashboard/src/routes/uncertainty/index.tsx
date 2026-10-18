@@ -12,13 +12,24 @@ import { useEffect, useState } from "react";
 import { runModule2 } from "../../lib";
 import "./uncertainty.css";
 
-/** Dirichlet classes — matches M2's K=3 safety classes plus the null hypothesis. */
-const K = 4;
+/**
+ * K is the EDL head's class count: M2's three safety classes (safe/stressed/critical).
+ * The Dirichlet vacuity is u = K/S with S = K + Sigma e, so there is no extra "null"
+ * class — the null hypothesis is what u itself measures.
+ */
+const K = 3;
 /** Evidence the EDL head emits on a fully in-distribution, fully observed reading. */
 const E0 = 60;
 
-const VALUE_TRIGGER_U = 0.5;
-const SENSING_TRIGGER_F = 0.45;
+/**
+ * Both thresholds are the engine's, not invented for this page:
+ * `observed_fraction_floor` is module2/config.yaml, and the value threshold is the
+ * 95th percentile of in-distribution u the trigger calibrates to (run_demo.py prints
+ * it as "value threshold"). The live path overrides both with the engine's own
+ * `value_threshold`; these only matter when the gateway is unreachable.
+ */
+const VALUE_TRIGGER_U = 0.147;
+const SENSING_TRIGGER_F = 0.35;
 /** baselines.MC_PASSES — the forward passes MC-Dropout pays per score. */
 const MC_PASSES = 20;
 
@@ -51,9 +62,13 @@ interface UncertaintyResult {
 /**
  * Offline stand-in for the engine, used only when the gateway is unreachable.
  *
- * These are hand-fitted curves, NOT the trained model — the shape is right and the
- * numbers are not. The live path (computeUncertainty) is the real EDL head; this exists
- * so the page still renders something honest-looking when the API is down.
+ * These are hand-fitted curves, NOT the trained model. K and both thresholds now match
+ * the engine's, so the SHAPE of the argument survives — u rising with novelty, u'
+ * rising as f falls, the two axes firing separately — but no individual number here is
+ * a measurement, and none should be read out or screenshotted as one.
+ *
+ * The page says so in a banner rather than a badge, because the whole claim of this
+ * route is that the numbers come from the real head.
  */
 function simulateUncertainty(state: UncertaintyState): UncertaintyResult {
   const n = state.novelty;
@@ -330,6 +345,16 @@ export default function UncertaintyRoute() {
             </div>
           </div>
         </header>
+
+        {result.source === "fallback" && (
+          <div className="uncertainty__offline" role="alert">
+            <strong>Not the engine.</strong> The gateway is unreachable, so these are
+            illustrative curves with the engine&rsquo;s thresholds — the shape is right,
+            the numbers are not measurements. Start it with{" "}
+            <code>uv run uvicorn gateway.main:app</code> from the repo root to score
+            against the trained EDL head.
+          </div>
+        )}
 
         <section className="uncertainty__card uncertainty__controls">
           <div className="uncertainty__card-title">1. Choose a situation</div>

@@ -366,3 +366,30 @@
     padding: 28px 20px 48px;
   }
 }
+
+/* Shown only when /api/module2/run is unreachable and the page fell back to the
+   hand-fitted curves. Deliberately loud: the route's whole claim is that its numbers
+   come from the trained head, so a small badge is not enough to retract it. */
+.uncertainty__offline {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--amber);
+  border-left-width: 4px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--amber) 10%, transparent);
+  color: var(--text);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.uncertainty__offline strong {
+  color: var(--amber);
+}
+
+.uncertainty__offline code {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--amber) 16%, transparent);
+}
