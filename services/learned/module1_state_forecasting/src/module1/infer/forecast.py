@@ -85,6 +85,7 @@ def forecast(model: STGNN, data: ds.ForecastData, timestamp: str, weighting: str
     xb = torch.from_numpy(x[None].astype(np.float32))
 
     with torch.no_grad():
+        model(xb)  # warm-up: the first call pays one-off allocation; NFR1 is about steady state
         started = time.perf_counter()
         pred = model(xb)[0].numpy()
         latency_ms = (time.perf_counter() - started) * 1000.0
