@@ -9,6 +9,7 @@ import AgentStateRoute from "./routes/agent-state";
 import GatingRoute from "./routes/gating";
 import UncertaintyRoute from "./routes/uncertainty";
 import VerificationRoute from "./routes/verification";
+import VulnerabilityRoute from "./routes/vulnerability";
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
       <Route path="/gating" element={<GatingRoute />} />
       <Route path="/uncertainty" element={<UncertaintyRoute />} />
       <Route path="/verification" element={<VerificationRoute />} />
+      <Route path="/vulnerability" element={<VulnerabilityRoute />} />
     </Routes>
   );
 }
