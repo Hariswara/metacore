@@ -1,5 +1,8 @@
-# Rendered by plots.py (viz extra). The tables they draw from are committed.
+# Rendered by plots.py (viz extra) into figures/. The tables they draw from are committed
+# in eval_tables.json, so every figure is reproducible with `python run_demo.py && python
+# plots.py` and none of them is a build input.
 *.png
+figures/
 
 # Baseline models + calibration fixture trained on first infer_one.py call. Derived from
 # seeded data, so reproducible from scratch — never a build input.
