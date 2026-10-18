@@ -218,6 +218,12 @@ export interface Module2RunResult {
   backend: string;
   /** Calibrated value-axis threshold the trigger compared u against. */
   value_threshold: number;
+  /**
+   * Empty when the input was clean. Non-empty means the engine repaired unusable input
+   * (truncated vector, NaN, bad mask) and forced the trigger, rather than raising —
+   * u_q is pinned to 1 in that case. See module2/sanitize.py.
+   */
+  input_problems?: string[];
 }
 
 /**

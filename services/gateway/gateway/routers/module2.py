@@ -105,6 +105,9 @@ class Module2RunResult(BaseModel):
     baselines: Module2Baselines
     backend: str
     value_threshold: float
+    # Empty when the input was a clean, full-width, finite vector. Non-empty means the
+    # engine repaired something and forced the trigger -- see module2/sanitize.py.
+    input_problems: list[str] = []
 
 
 def _argv_and_stdin(req: Module2RunRequest) -> tuple[list[str], str | None]:

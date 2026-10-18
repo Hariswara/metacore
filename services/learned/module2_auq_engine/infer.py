@@ -24,7 +24,8 @@ from pathlib import Path
 import numpy as np
 import yaml
 from contract import build_output
-from trigger import CompetenceDropTrigger
+from sanitize import sanitize_state
+from trigger import REASON_BOTH, REASON_SENSING, REASON_VALUE, CompetenceDropTrigger
 
 HERE = Path(__file__).parent
 MODEL_PATH = HERE / "edl.onnx"
@@ -70,7 +71,12 @@ class OnnxAUQ:
 
     def evidence(self, features):
         """One state's raw features -> evidence. Normalisation applied here, since the
-        graph expects standardised input and the statistics live in the model card."""
+        graph expects standardised input and the statistics live in the model card.
+
+        Strict about width: the frozen graph has a fixed 28-wide input and cannot be fed
+        anything else. `score` sanitises before it gets here, so the runtime path degrades
+        instead of hitting this.
+        """
         x = np.asarray(features, dtype=np.float32).reshape(1, -1)
         if x.shape[1] != len(self.feature_names):
             raise ValueError(
@@ -112,6 +118,35 @@ class OnnxAUQ:
         fired, reason = self._trigger.update(value_u, observed_fraction)
         return build_output(adjusted_u, probs, aleatoric_proxy, fired,
                             observed_fraction, reason)
+
+    def score_state(self, features, quality_mask=None, aleatoric_proxy=0.0):
+        """The resilient entry point: score anything, never raise.
+
+        Unlike `score`, this derives `observed_fraction` from the quality mask and repairs
+        unusable input first (see sanitize.py). A gate on a control loop that throws has
+        handed the decision to a caller with no uncertainty machinery of its own, so a
+        state we cannot read is reported as a state we cannot trust -- maximum uncertainty
+        and a fired trigger -- rather than as an exception.
+
+        The emitted message is an ordinary `M2Output`: degradation shows up as
+        `competence_drop` with `trigger_reason` "sensing", which M3 already handles. No
+        contract change, and nothing new for M3 to learn.
+        """
+        if self.value_threshold is None:
+            raise RuntimeError("call calibrate() or pass value_threshold= before scoring")
+
+        clean = sanitize_state(features, quality_mask)
+        of = clean.observed_fraction
+        value_u, adjusted_u, probs = self.uncertainty(self.evidence(clean.features), of)
+        fired, reason = self._trigger.update(value_u, of)
+
+        if not clean.ok:
+            # The reading is not evidence about anything. Escalate whatever f came to.
+            fired = True
+            reason = REASON_BOTH if reason in (REASON_VALUE, REASON_BOTH) else REASON_SENSING
+            adjusted_u = 1.0
+
+        return build_output(adjusted_u, probs, aleatoric_proxy, fired, of, reason)
 
     def reset(self):
         """Clear the trigger's hysteresis state between episodes."""

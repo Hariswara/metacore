@@ -50,10 +50,10 @@ from baselines import (
 )
 from edl import uncertainty as edl_uncertainty
 from edl import uncertainty_quality
-from metacore_contracts.state_schema import FEATURE_NAMES
-from state_contract import QUALITY_VALUES, QualityMask, stack_features
+from sanitize import sanitize_state
+from state_contract import stack_features
 from synthetic_data import Normalizer, sample_states_id, sample_states_ood
-from trigger import CompetenceDropTrigger
+from trigger import REASON_BOTH, REASON_SENSING, REASON_VALUE, CompetenceDropTrigger
 
 HERE = Path(__file__).parent
 CACHE_DIR = HERE / ".dashboard_cache"
@@ -340,10 +340,12 @@ def score(novelty: float, observed_fraction: float) -> dict:
     n = float(np.clip(novelty, 0.0, 1.0))
     f = float(np.clip(observed_fraction, 0.0, 1.0))
     query_raw = _query_state(fixture, n)
-    return _score_raw(cfg, fixture, engine, query_raw, f, of_floor, value_threshold)
+    result = _score_raw(cfg, fixture, engine, query_raw, f, of_floor, value_threshold)
+    result["input_problems"] = []      # a manufactured state is clean by construction
+    return result
 
 
-def score_state(features, quality_mask) -> dict:
+def score_state(features, quality_mask=None) -> dict:
     """The contract path: one real M1 state vector in, one scored M2 reading out.
 
     `features` is the pinned 28-feature `node_features` row and `quality_mask` the matching
@@ -353,38 +355,29 @@ def score_state(features, quality_mask) -> dict:
     let a caller claim a quality the mask does not support.
 
     This is the shape `/api/module1/assemble` already emits, so M1 -> M2 composes directly.
+
+    Never raises on bad input. `sanitize_state` repairs what it can, demoting unusable
+    features to QUALITY_MISSING so they lower f, and anything it had to repair forces the
+    trigger -- a state we cannot read is a state we cannot trust. `input_problems` says
+    what was wrong, so the page can show why it degraded rather than just that it did.
     """
     cfg = _load_config()
     _seed_everything(int(cfg["seed"]))
 
-    query_raw = _validate_features(features)
-    f = QualityMask.from_per_feature(_validate_mask(quality_mask)).observed_fraction
-
+    clean = sanitize_state(features, quality_mask)
     fixture, engine, of_floor, value_threshold = _engine_and_threshold(cfg)
-    return _score_raw(cfg, fixture, engine, query_raw, f, of_floor, value_threshold)
+    result = _score_raw(cfg, fixture, engine, clean.features,
+                        clean.observed_fraction, of_floor, value_threshold)
 
-
-def _validate_features(features) -> np.ndarray:
-    """The 28 pinned features as a float32 row, or a ValueError naming what was wrong."""
-    arr = np.asarray(features, dtype=np.float64).reshape(-1)
-    if arr.size != len(FEATURE_NAMES):
-        raise ValueError(
-            f"expected {len(FEATURE_NAMES)} features (the pinned contract), got {arr.size}"
+    result["input_problems"] = list(clean.problems)
+    if not clean.ok:
+        result["trigger"] = True
+        result["u_q"] = 1.0
+        result["baselines"]["edl"] = 1.0
+        result["reason"] = (
+            REASON_BOTH if result["reason"] in (REASON_VALUE, REASON_BOTH) else REASON_SENSING
         )
-    return arr.astype(np.float32)
-
-
-def _validate_mask(quality_mask) -> list[str]:
-    """One Quality flag per pinned feature, names checked against the proto enum."""
-    flags = [str(q) for q in quality_mask]
-    if len(flags) != len(FEATURE_NAMES):
-        raise ValueError(
-            f"quality_mask must cover all {len(FEATURE_NAMES)} features, got {len(flags)}"
-        )
-    unknown = sorted(set(flags) - QUALITY_VALUES)
-    if unknown:
-        raise ValueError(f"quality_mask has non-Quality values: {unknown}")
-    return flags
+    return result
 
 
 def main() -> int:
