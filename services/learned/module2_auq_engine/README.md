@@ -76,7 +76,9 @@ Competence-drop trigger — two conditions, OR'd, with the reason it fired:
 | cyclone (value-OOD) | 1.000 | `value` 1.00 |
 | comms blackout (`observed_fraction` < 0.35) | 1.000 | `sensing` 0.95, `both` 0.05 |
 
-Magnitude along the quality axis — the same in-distribution states, less of them observed:
+Magnitude along the quality axis — the same in-distribution states, less of them
+observed. Printed by `run_demo.py` and written to `eval_tables.json` as
+`quality_sweep`, so these are regenerated rather than computed by hand:
 
 | `observed_fraction` | 1.00 | 0.75 | 0.50 | **0.4286** | 0.25 | 0.10 |
 |---|---|---|---|---|---|---|
@@ -98,6 +100,54 @@ range as an ordinary one, so blackouts survive the cut (their share even rises, 
 the cyclones ahead of them are removed). The explicit `observed_fraction` floor is what
 catches them: the two-condition trigger fires on 1.000 of cyclones **and** 1.000 of
 blackouts, at 0.050 on normal operation.
+
+## Bad input degrades, it does not raise
+
+A gate on a control loop must not throw. If M1 hands M2 a truncated vector, a NaN from a
+divide-by-zero upstream, or nothing at all, the honest reading is *"I cannot see this
+state"* — which is what `u' = 1` plus a fired trigger already means. Raising instead
+pushes the decision onto a caller with no uncertainty machinery of its own, and at worst
+drops the control step, the one outcome this module exists to prevent.
+
+`sanitize.py` does this without a special case, because an unusable feature **is an
+unobserved feature**. Its quality flag is rewritten to `QUALITY_MISSING`, `f` falls out of
+the mask exactly as it always does, and the existing arithmetic finishes the job:
+
+Measured through the real head (`backend=onnx`), one in-distribution state damaged
+different ways:
+
+| input | f | u' | trigger | reason |
+|---|---|---|---|---|
+| clean 28-wide vector | 0.4286 | 0.114 | no | `none` |
+| 3 of 28 features NaN | 0.4286 | **1.000** | **yes** | `both` |
+| all 28 NaN | 0.0000 | **1.000** | **yes** | `both` |
+| empty / `None` / a string | 0.0000 | **1.000** | **yes** | `both` |
+| 8-wide (the old mock width) | 0.2857 | **1.000** | **yes** | `both` |
+| 40-wide | 1.0000 | **1.000** | **yes** | `both` |
+
+All 28 unusable gives `f = 0`, hence `u' = K/K = 1` — below any sensible floor, so the
+sensing axis fires on the arithmetic alone.
+
+Two things the table makes honest that the mechanism alone would not:
+
+- **The reason is `both`, not `sensing`.** A damaged vector is zero-filled, and a
+  zero-filled row is *also* unlike anything in training, so the value axis fires too.
+  That is the correct reading — we can neither see the state nor recognise it — and it is
+  what M3 is handed. Only the `f`-driven part is the sensing axis.
+- **`f` alone is not the gate.** Three NaNs in a state whose mask already marked those
+  features non-observed leaves `f` untouched at 0.4286, and a 40-wide vector lands at
+  `f = 1.0`. Both still escalate, because callers force the trigger on `Sanitized.ok`.
+  Width in particular is a *contract* violation rather than a quality problem: it is
+  padded or truncated and flagged, never silently scored.
+
+**The M2→M3 message does not change.** Degradation arrives as `competence_drop` with
+`trigger_reason` `sensing` or `both` — values M3 already handles — so there is no schema
+bump and nothing new for the gate to learn.
+
+`validate_state` is the strict counterpart: the HTTP layer rejects a malformed request
+with a 422 rather than scoring it, because a caller bug should surface as a caller bug.
+Graceful degradation is for the runtime path, where there is no one to show an error to.
+`tests/test_edge_cases.py` covers 11 kinds of bad input across both.
 
 ## Baselines and the ablation (`python benchmark.py` → `comparison_table.json`)
 
@@ -140,6 +190,11 @@ viable and not.
 
 Every claim above is asserted as an *ordering* in `tests/test_baselines.py` at reduced
 scale (~5s) — exact values move with the seed, the ranking does not.
+
+`run_demo.py` prints this table too, via `benchmark.compare`, so the end-to-end demo
+shows what the alternatives do on the same data. Its numbers sit slightly off the ones
+above because the demo trains on the mixed-quality population and `benchmark.py` on
+clean states; the ordering is the claim.
 
 ## Serving: ONNX export and batch-1 latency (optional `onnx` extra)
 
@@ -195,6 +250,43 @@ merely absent. The model card is committed, and records the verification result.
 `infer.OnnxAUQ` is the path M3 calls: `load()` → `calibrate(id_features)` → `score(features,
 observed_fraction)` → an `M2Output`. It runs the same two axes as the torch path and needs
 no torch at serving time.
+
+## Behind the prototype UI (`POST /api/module2/run`)
+
+The dashboard's uncertainty page scores against this engine through the gateway, which
+shells out to `infer_one.py`. Two request forms, and the first is the real one:
+
+| form | body | `f` comes from |
+|---|---|---|
+| **contract** | `features` (28 floats) + `quality_mask` (28 `Quality` flags) | **derived** from the mask |
+| **synthetic** | `novelty` + `observed_fraction` | taken as given |
+
+`observed_fraction` is never an input on the contract form. The proto documents it as a
+convenience over `per_feature`, so accepting it as a number would let a caller claim a
+data quality its own mask does not support. The contract form is exactly the shape
+`/api/module1/assemble` emits, so **M1 → M2 composes directly**:
+
+```bash
+curl -s localhost:8000/api/module1/assemble -d '{"island":"eluvaitivu","scenario":"normal"}'   -H 'content-type: application/json'   | jq '{features: .node_features[0], quality_mask: .quality_mask}'   | curl -s localhost:8000/api/module2/run -H 'content-type: application/json' -d @-
+```
+
+Response: `u`, `u_q`, `evidence`, `observed_fraction`, `trigger`, `reason`, `latency_ms`,
+`baselines`, `backend`, `value_threshold`, `input_problems`. Sending both forms, or
+neither, is a 422. `services/gateway/tests/test_module2_router.py` covers the wiring.
+
+### Known gap: the head does not yet recognise M1's real states
+
+Scored against a real `/api/module1/assemble` row, the engine returns **`u = u' = 1.0`
+with `evidence = K`** — zero evidence, fully out of distribution. The wiring is correct
+and `f` derives correctly at 12/28; what is missing is a head **trained on M1's real
+feature distribution** rather than on `synthetic_data`. M1's row zero-fills the five
+electrical features (`QUALITY_MISSING`, no SCADA — ADR 0004) and the eight topology
+constants, which is nothing like the synthetic draws the head was fitted to.
+
+This is the next piece of M1→M2 integration, and it is pinned by
+`test_a_real_m1_state_currently_saturates_the_value_axis` so it cannot start passing
+silently. Until it lands, the page's **synthetic** form is the one that demonstrates the
+two axes; the contract form demonstrates the plumbing.
 
 ## Real data: the Eluvaitivu degradation (`python eluvaitivu_decay.py`)
 
@@ -284,14 +376,40 @@ continues through it — and nothing in the record resolves it.
 ## Figures (optional `viz` extra)
 
 Metrics are computed in NumPy and emitted as **data** — `run_demo.py` writes
-`eval_tables.json` (reliability bins, risk-coverage points, retained composition). Nothing
-in the test lane imports a plotting stack.
+`eval_tables.json` (reliability bins, risk-coverage points, retained composition,
+uncertainty histogram, quality sweep, calibrated thresholds). `plots.py` only draws what
+is already there, so nothing in the test lane imports a plotting stack.
+
+Four figures, one per claim the module makes, written to `figures/`:
+
+| figure | the claim it carries |
+|---|---|
+| `uncertainty_histogram.png` | the populations occupy different parts of [0, 1] — OOD detection |
+| `reliability.png` | the probabilities are honest — calibration |
+| `risk_coverage.png` | `u` ranks errors, so abstention works — selective prediction |
+| `u_prime_vs_f.png` | the sensing axis moves `u'` independently — the two-axis design |
+
+`u_prime_vs_f.png` is the two-axis argument as a picture: `u'` is swept over `f` on
+**fixed** evidence, so only the sensing axis moves. The cyclone curve comes out flat at
+1.000 — with no evidence to discount, `f` has nothing to act on — while *normal* and
+*blackout* lie on top of each other, because a blackout corrupts the mask and not the
+values. The sensing floor and M1's nominal `f` are drawn on it.
 
 ```bash
-uv sync --package metacore-module2 --extra viz   # or: pip install 'matplotlib>=3.7'
-python run_demo.py                               # writes eval_tables.json
-python plots.py                                  # writes reliability.png, risk_coverage.png
+uv sync --all-packages --all-extras                # see the warning below
+python run_demo.py                                 # writes eval_tables.json
+python plots.py                                    # writes figures/*.png
 ```
+
+> **Do not run `uv sync --package metacore-module2 --extra viz` in this workspace.**
+> `--package` syncs *only* that package and prunes everything else from the shared
+> `.venv` — it will uninstall the gateway's, M1's, M3's and M4's dependencies along with
+> pytest. Use `uv sync --all-packages --all-extras`, or `pip install 'matplotlib>=3.7'`
+> into the existing venv if you only want the plots.
+
+Figures are **not committed**: `*.png` and `figures/` are gitignored here by design, and
+the tables they draw from are. Every figure is reproducible with `python run_demo.py &&
+python plots.py`.
 
 ## Run
 ```bash
@@ -304,17 +422,18 @@ python run_demo.py
 - `synthetic_data.py` — **mock M1 state generator** (ID normal + OOD cyclone + comms blackout), emitting `StateRepresentation` over the real 28 pinned features. Replace with the real M1→M2 adapter when it lands.
 - `edl.py` — EDL head, `u = K/S`, quality-aware `u`, Dirichlet KL, EDL loss, OOD-aware evidence regulariser.
 - `trigger.py` — two-condition competence-drop trigger (value threshold OR sensing floor, hysteresis, reason).
+- `sanitize.py` — makes any input scoreable and says what was wrong with it, so the runtime path degrades to maximum uncertainty instead of raising. `validate_state` is the strict counterpart for the HTTP layer.
 - `evaluate.py` — AUROC / AUPR / FPR95 / ECE plus risk-coverage / AURC, reliability and retained-composition **tables** (NumPy, no plotting).
-- `plots.py` — renders those tables (reliability diagram, risk-coverage curve). Needs the `viz` extra; imported by nothing else.
+- `plots.py` — renders those tables into `figures/` (uncertainty histogram, reliability diagram, risk-coverage curve, `u'`-vs-`f`). Needs the `viz` extra; imported by nothing else.
 - `baselines.py` — softmax max-prob, MC-Dropout, and the EDL / EDL-without-OOD-reg pair, on one architecture.
 - `benchmark.py` + `comparison_table.json` — full-scale comparison **script** (not run in CI) and the table it writes.
 - `real_data.py` — real Eluvaitivu states from M1's committed artifacts (hourly load + NASA weather), and the per-plant monthly ledger.
 - `eluvaitivu_decay.py` + `results/eluvaitivu_decay.json` — the real-data evaluation **script** and its output.
 - `export_onnx.py` + `edl.onnx` + `edl.onnx.json` — ONNX export **script**, the batch-1 artifact, and its model card (architecture, opset, normalisation statistics).
-- `infer.py` — the serving path M3 calls: ONNX evidence + uncertainty + trigger, no torch at inference.
+- `infer.py` — the serving path M3 calls: ONNX evidence + uncertainty + trigger, no torch at inference. `score_state` is the resilient entry point (derives `f` from the mask, never raises).
 - `bench_latency.py` + `latency_table.json` — batch-1 p50/p99 **script** for torch-eager vs ONNX Runtime.
 - `contract.py` + `M2_TO_M3_CONTRACT.md` — **M2→M3 message + mock stream for Saabir**.
-- `run_demo.py` — end-to-end prototype; writes `sample_m2_to_m3.jsonl` and `eval_tables.json`.
+- `run_demo.py` — end-to-end prototype (~59s): trains the head, prints the OOD metrics, the baseline comparison, the trigger breakdown, the selective-prediction curve and the sensing sweep; writes `sample_m2_to_m3.jsonl` and `eval_tables.json`.
 - `config.yaml` — K, features, training and trigger settings (retune without code changes).
 
 ## Four things worth understanding
