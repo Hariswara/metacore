@@ -23,6 +23,20 @@ def test_forecast_rejects_unknown_weighting() -> None:
 
 
 @needs_checkpoint
+@pytest.mark.parametrize("stamp", ["", "garbage", "2025-13-40T99:00", "2024-01-01T03:00"])
+def test_forecast_rejects_garbage_empty_and_history_less_hours(stamp: str) -> None:
+    r = client.post("/api/module1/forecast", json={"timestamp": stamp})
+    assert r.status_code == 422, r.text
+
+
+@needs_checkpoint
+def test_an_empty_body_forecasts_the_default_ditwah_hour() -> None:
+    r = client.post("/api/module1/forecast", json={})
+    assert r.status_code == 200, r.text
+    assert r.json()["timestamp_lst"] == "2025-11-28T08:00"
+
+
+@needs_checkpoint
 def test_forecast_rejects_an_hour_outside_the_record() -> None:
     r = client.post("/api/module1/forecast", json={"timestamp": "2030-01-01T00:00"})
     assert r.status_code == 422
