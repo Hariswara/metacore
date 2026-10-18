@@ -105,3 +105,89 @@ def assemble_state(req: Module1AssembleRequest) -> Module1AssembleResult:
         raise HTTPException(status_code=500, detail=detail) from exc
 
     return Module1AssembleResult(**payload)
+
+
+# ---------------------------------------------------------------- forecast (key function 2)
+# Shells out to ``module1.infer.forecast``, which loads the trained ST-GNN v0.1 checkpoint. The
+# checkpoint is git-ignored and produced by ``module1.train.run``; when it is missing the CLI exits
+# 2 and this endpoint returns 503 with the command that makes it, rather than inventing a forecast.
+
+WEIGHTINGS = ("equal", "hazard_heavy", "stress_heavy")
+
+
+class Module1ForecastRequest(BaseModel):
+    timestamp: str = Field("2025-11-28T08:00", description="ISO local hour inside 2024-2025")
+    weighting: str = Field("equal")
+
+
+class Module1ForecastNode(BaseModel):
+    id: str
+    island: str
+    asset: str
+    current: float
+    history: list[float]
+    forecast: list[float]
+    persistence: list[float]
+    target: list[float] | None
+    components: dict[str, float]
+    embedding: list[float]
+
+
+class Module1ForecastResult(BaseModel):
+    timestamp_lst: str
+    split: str
+    weighting: str
+    weights: dict[str, float]
+    variant: str
+    horizon_h: int
+    history_h: int
+    tau: float
+    embedding_dim: int
+    has_embedding: bool
+    ranking_t1: list[str]
+    above_tau_t1: list[str]
+    latency_ms: float
+    data_source: str
+    quality: str
+    nodes: list[Module1ForecastNode]
+    test_summary: dict[str, dict[str, float]] | None
+    generated_ms: float
+
+
+@router.post("/forecast", response_model=Module1ForecastResult)
+def forecast_vulnerability(req: Module1ForecastRequest) -> Module1ForecastResult:
+    if req.weighting not in WEIGHTINGS:
+        raise HTTPException(status_code=422, detail=f"weighting must be one of {WEIGHTINGS}")
+    argv = [
+        sys.executable, "-m", "module1.infer.forecast",
+        "--timestamp", req.timestamp,
+        "--weighting", req.weighting,
+        "--json",
+    ]
+    env = {
+        **os.environ,
+        "PYTHONPATH": os.pathsep.join(
+            [str(MODULE1_SRC), str(CONTRACTS_PY), os.environ.get("PYTHONPATH", "")]
+        ),
+    }
+    try:
+        proc = subprocess.run(
+            argv, cwd=REPO_ROOT, capture_output=True, text=True,
+            timeout=RUN_TIMEOUT_S, env=env,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(status_code=504, detail="Module 1 forecast timed out") from exc
+
+    stderr = proc.stderr.strip()[-4000:]
+    if proc.returncode == 2:  # no trained checkpoint
+        raise HTTPException(status_code=503, detail=stderr)
+    if proc.returncode == 3:  # hour outside the record or without 24 h of history
+        raise HTTPException(status_code=422, detail=stderr)
+    if proc.returncode != 0:
+        raise HTTPException(status_code=500, detail=stderr or "Module 1 forecast failed")
+    try:
+        payload = json.loads(proc.stdout)
+    except json.JSONDecodeError as exc:
+        detail = proc.stdout.strip()[-4000:] or "Module 1 forecast produced no JSON on stdout"
+        raise HTTPException(status_code=500, detail=detail) from exc
+    return Module1ForecastResult(**payload)
