@@ -15,6 +15,7 @@ import random
 import numpy as np
 import torch
 import yaml
+from benchmark import compare, format_table
 from contract import build_output
 from edl import EDLNet, edl_mse_loss, kl_to_uniform, uncertainty, uncertainty_quality
 from evaluate import (
@@ -178,6 +179,22 @@ fired_mixed = np.array(
      for v, o in zip(vu_mixed, of_mixed, strict=True)])
 for g in ("normal", "cyclone", "blackout"):
     print(f"     trigger fires on {g:<9}: {fired_mixed[groups == g].mean():.3f}")
+
+# --- how the alternatives do on the same data ---
+# benchmark.compare trains the four methods; this reuses the demo's own normalised
+# arrays so the table describes exactly the data printed above. Latency is skipped here
+# -- that column is throughput, and bench_latency.py is the honest batch-1 number.
+# benchmark.py remains the full-scale run that writes comparison_table.json.
+print()
+print("Same data, four uncertainty mechanisms (EDL vs the standard baselines):")
+print(format_table(compare(Xtr_, ytr, Xte_, yte, Xood_, tr["epochs"],
+                           seed=cfg["seed"], ood_reg=tr["ood_reg_weight"],
+                           time_it=False)))
+print("  -> the baselines do not merely underperform, they INVERT (AUROC < 0.5): a ReLU")
+print("     net is more confident far from its training data. The ablation row shows the")
+print("     OOD regulariser, not the Dirichlet head, is what fixes it.")
+print("     (These move a little against comparison_table.json: the demo trains on the")
+print("      mixed-quality population, benchmark.py on clean states. Ordering is the claim.)")
 
 # --- the sensing axis, swept: u' against f on fixed evidence ---
 # Sum(e) per state, so quality_sweep needs no model. The value axis is held still by
