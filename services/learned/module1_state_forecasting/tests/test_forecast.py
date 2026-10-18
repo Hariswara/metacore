@@ -197,6 +197,41 @@ def test_persistence_and_lstm_read_only_the_history_column() -> None:
         assert torch.equal(model(x), model(x2))
 
 
+# ------------------------------------------------------------ inference
+
+@needs_artifacts
+def test_inference_reports_split_ranking_and_keeps_scores_in_range() -> None:
+    from module1.infer.forecast import forecast
+    d = ds.build()
+    a_hat = torch.tensor(d.graph.normalized(), dtype=torch.float32)
+    torch.manual_seed(0)
+    model = STGNN(len(ds.FEATURES), 6, a_hat, gcn_layers=1, residual=True).eval()
+    out = forecast(model, d, "2025-11-28T08:00", "equal")
+    assert out["split"] == "test"
+    assert len(out["nodes"]) == d.graph.n
+    assert all(0.0 <= z <= 1.0 for n in out["nodes"] for z in n["forecast"])
+    assert out["nodes"][0]["history"][-1] == out["nodes"][0]["current"]
+    assert forecast(model, d, "2024-06-15T18:00", "equal")["split"] == "train"
+
+
+@needs_artifacts
+def test_inference_refuses_hours_without_history_or_outside_the_record() -> None:
+    from module1.infer.forecast import forecast
+    d = ds.build()
+    a_hat = torch.tensor(d.graph.normalized(), dtype=torch.float32)
+    model = STGNN(len(ds.FEATURES), 6, a_hat, gcn_layers=1, residual=True).eval()
+    with pytest.raises(ValueError, match="history"):
+        forecast(model, d, "2024-01-01T05:00", "equal")
+    with pytest.raises(ValueError, match="not an hour"):
+        forecast(model, d, "2027-01-01T00:00", "equal")
+
+
+def test_missing_checkpoint_names_the_command_that_makes_it(tmp_path) -> None:
+    from module1.infer.forecast import CheckpointMissing, load_model
+    with pytest.raises(CheckpointMissing, match="module1.train.run"):
+        load_model(None, "equal", tmp_path)
+
+
 # ------------------------------------------------------------ metrics
 
 def test_event_detection_counts() -> None:
