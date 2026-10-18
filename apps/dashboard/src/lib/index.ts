@@ -220,6 +220,10 @@ export interface Module2RunResult {
   value_threshold: number;
 }
 
+/**
+ * Synthetic path — the novelty/quality sliders. `observedFraction` is taken as given
+ * because a manufactured state has no QualityMask behind it.
+ */
 export async function runModule2(
   novelty: number,
   observedFraction: number,
@@ -227,6 +231,25 @@ export async function runModule2(
   return postJson<Module2RunResult>(
     "/api/module2/run",
     { novelty, observed_fraction: observedFraction },
+    (detail, status) => new Module2RunError(detail, status),
+  );
+}
+
+/**
+ * Contract path — one real M1 state vector in.
+ *
+ * `features` is the pinned 28-feature `node_features` row and `qualityMask` its matching
+ * per-feature flags; both come straight off `assembleModule1State`. The sensing fraction
+ * is DERIVED from the mask server-side, so it is not a parameter here — passing one would
+ * let the caller claim a data quality the mask does not support.
+ */
+export async function runModule2State(
+  features: number[],
+  qualityMask: QualityFlag[],
+): Promise<Module2RunResult> {
+  return postJson<Module2RunResult>(
+    "/api/module2/run",
+    { features, quality_mask: qualityMask },
     (detail, status) => new Module2RunError(detail, status),
   );
 }
