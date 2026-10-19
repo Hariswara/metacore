@@ -198,3 +198,45 @@ def forecast_vulnerability(req: Module1ForecastRequest) -> Module1ForecastResult
         detail = proc.stdout.strip()[-4000:] or "Module 1 forecast produced no JSON on stdout"
         raise HTTPException(status_code=500, detail=detail) from exc
     return Module1ForecastResult(**payload)
+
+
+# ---------------------------------------------------------------- M1 -> M4 topology (draft v1)
+# The canonical network M4's twin compiles, and one hour's grid state for it. The topology is
+# the committed pin, read as-is; the snapshot shells out to `module1.topology snapshot`, the same
+# way /assemble and /forecast shell out, so the gateway carries no M1 logic of its own.
+
+TOPOLOGY_PIN = CONTRACTS_PY / "metacore_contracts" / "schema" / "module1_topology_v1.json"
+
+
+@router.get("/topology")
+def get_topology() -> dict:
+    if not TOPOLOGY_PIN.exists():
+        raise HTTPException(status_code=503, detail="topology pin absent: run "
+                            "python -m module1.topology build")
+    return json.loads(TOPOLOGY_PIN.read_text())
+
+
+class Module1SnapshotRequest(BaseModel):
+    timestamp: str = Field("2025-11-28T19:00", description="ISO local hour inside 2024-2025")
+
+
+@router.post("/snapshot")
+def grid_state_snapshot(req: Module1SnapshotRequest) -> dict:
+    argv = [sys.executable, "-m", "module1.topology", "snapshot", "--timestamp", req.timestamp]
+    env = {
+        **os.environ,
+        "PYTHONPATH": os.pathsep.join(
+            [str(MODULE1_SRC), str(CONTRACTS_PY), os.environ.get("PYTHONPATH", "")]
+        ),
+    }
+    try:
+        proc = subprocess.run(argv, cwd=REPO_ROOT, capture_output=True, text=True,
+                              timeout=RUN_TIMEOUT_S, env=env)
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(status_code=504, detail="Module 1 snapshot timed out") from exc
+    if proc.returncode == 3:
+        raise HTTPException(status_code=422, detail=proc.stderr.strip()[-2000:])
+    if proc.returncode != 0:
+        raise HTTPException(status_code=500,
+                            detail=proc.stderr.strip()[-4000:] or "Module 1 snapshot failed")
+    return json.loads(proc.stdout)
