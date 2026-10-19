@@ -59,6 +59,21 @@ def test_forecast_returns_every_node_with_six_horizons_and_an_embedding() -> Non
 
 
 @needs_checkpoint
+def test_forecast_carries_the_same_contract_fields_as_assemble() -> None:
+    """M2's sensing axis reads these; they must match /assemble exactly, node for node."""
+    f = client.post("/api/module1/forecast", json={"timestamp": "2025-11-28T08:00"}).json()
+    assert f["schema_version"] == "1.0"
+    assert len(f["feature_names"]) == len(f["quality_mask"]) == 28
+    assert len(f["node_features"]) == len(f["nodes"])
+    assert f["observed_fraction"] == pytest.approx(12 / 28, abs=1e-4)
+    a = client.post("/api/module1/assemble",
+                    json={"island": "eluvaitivu", "timestamp": "2025-11-28T08:00"}).json()
+    assert f["feature_names"] == a["feature_names"]
+    assert f["quality_mask"] == a["quality_mask"]
+    assert f["node_features"][: a["node_count"]] == a["node_features"]
+
+
+@needs_checkpoint
 def test_a_training_hour_is_labelled_as_training() -> None:
     r = client.post("/api/module1/forecast", json={"timestamp": "2024-06-15T18:00"})
     assert r.status_code == 200, r.text

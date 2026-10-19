@@ -149,6 +149,13 @@ class Module1ForecastResult(BaseModel):
     latency_ms: float
     data_source: str
     quality: str
+    # M1 -> M2 contract fields, identical to /assemble's: node_features[i] is nodes[i]'s
+    # 28-column state; quality_mask / observed_fraction feed M2's sensing axis.
+    schema_version: str
+    feature_names: list[str]
+    node_features: list[list[float]]
+    quality_mask: list[str]
+    observed_fraction: float
     nodes: list[Module1ForecastNode]
     test_summary: dict[str, dict[str, float]] | None
     generated_ms: float

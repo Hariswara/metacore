@@ -26,6 +26,8 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from module1.assemble import ISLAND_KEYS
+from module1.assemble import assemble as assemble_state
 from module1.models.stgnn import EMBEDDING_DIM, STGNN, persistence
 from module1.train import dataset as ds
 from module1.train import target as tgt
@@ -68,7 +70,39 @@ def split_of(data: ds.ForecastData, t: int) -> str:
     return "none"
 
 
-def forecast(model: STGNN, data: ds.ForecastData, timestamp: str, weighting: str) -> dict:
+def contract_state(data: ds.ForecastData, timestamp: str, data_root=None) -> dict:
+    """The M1 -> M2 contract fields for this hour, built by ``module1.assemble`` itself.
+
+    One assembled state per island, concatenated in graph node order, so ``node_features``,
+    ``quality_mask`` and ``observed_fraction`` are exactly what ``/module1/assemble`` publishes --
+    one code path, not a copy that can drift. M2's sensing axis reads these.
+    """
+    island_id = {name: key for key, name in ISLAND_KEYS.items()}
+    rows: list[list[float]] = []
+    states = []
+    for island in dict.fromkeys(data.graph.node_island):
+        st = assemble_state(island_id[island], "normal", timestamp, data_root)
+        if st["timestamp_lst"] != timestamp or st["node_names"] != [
+            a for i, a in zip(data.graph.node_island, data.graph.node_asset, strict=True)
+            if i == island
+        ]:
+            raise ValueError(f"assembled state for {island} does not match the forecast graph")
+        rows.extend(st["node_features"])
+        states.append(st)
+    first = states[0]
+    if any(s["quality_mask"] != first["quality_mask"] for s in states):
+        raise ValueError("islands disagree on the quality mask")
+    return {
+        "schema_version": first["schema_version"],
+        "feature_names": first["feature_names"],
+        "node_features": rows,
+        "quality_mask": first["quality_mask"],
+        "observed_fraction": first["observed_fraction"],
+    }
+
+
+def forecast(model: STGNN, data: ds.ForecastData, timestamp: str, weighting: str,
+             data_root=None) -> dict:
     """Pure function of a loaded model and the data: what the page shows for one hour."""
     hist, hor = CONFIG["history_h"], CONFIG["horizon_h"]
     matches = np.where(data.timestamps == timestamp)[0]
@@ -128,7 +162,8 @@ def forecast(model: STGNN, data: ds.ForecastData, timestamp: str, weighting: str
         "above_tau_t1": [data.graph.node_ids[i] for i in range(data.graph.n) if pred[i, 0] > tau],
         "latency_ms": round(latency_ms, 3),
         "data_source": data.data_source,
-        "quality": "QUALITY_INTERPOLATED",
+        "quality": "QUALITY_INTERPOLATED",  # of the vulnerability score itself
+        **contract_state(data, timestamp, data_root),
         "nodes": nodes,
     }
 
@@ -163,7 +198,7 @@ def main(argv=None) -> int:
         print(str(exc), file=sys.stderr)
         return 2
     try:
-        out = forecast(model, data, args.timestamp, args.weighting)
+        out = forecast(model, data, args.timestamp, args.weighting, args.data_root)
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 3

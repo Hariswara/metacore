@@ -324,7 +324,14 @@ export interface Module1ForecastResult {
   above_tau_t1: string[];
   latency_ms: number;
   data_source: "real" | "synthetic";
+  /** Quality of the vulnerability score itself (a constructed proxy). */
   quality: string;
+  /** M1 -> M2 contract fields, identical to /assemble's: node_features[i] belongs to nodes[i]. */
+  schema_version: string;
+  feature_names: string[];
+  node_features: number[][];
+  quality_mask: QualityFlag[];
+  observed_fraction: number;
   nodes: Module1ForecastNode[];
   test_summary: Record<"stgnn" | "persistence" | "lstm_1d", { rmse_mean: number; onset_recall: number }> | null;
   generated_ms: number;
