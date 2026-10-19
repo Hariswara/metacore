@@ -5,9 +5,10 @@ Held-out test quarter: Oct-Dec 2025 (Cyclone Ditwah, Eluvaitivu battery decay). 
 
 ## The claim, stated carefully
 
-**ST-GNN v0.1 is a residual correction on persistence.** Most of its gain over a conventional
-1-D LSTM comes from the residual head (predict the change from the current score), not from the
-graph. Against a 1-D LSTM given the same residual head, ST-GNN v0.1 still has the lowest mean
+**ST-GNN v0.1 is a residual correction on persistence.** Of its gain over a conventional 1-D
+LSTM, the residual head (predict the change from the current score) accounts for about 68% under
+the equal weighting and 72% under stress-heavy; under hazard-heavy the split is roughly even (46%
+residual head, 54% fused inputs and graph). Against a 1-D LSTM given the same residual head, ST-GNN v0.1 still has the lowest mean
 error in all three weightings and catches more high-vulnerability onsets early, but it does not
 win at every horizon. The graph helps only under the stress-heavy weighting, and weather inputs
 do not help at all, which is consistent with NASA POWER giving three of the four islands
