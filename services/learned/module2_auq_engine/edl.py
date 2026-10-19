@@ -63,8 +63,18 @@ def kl_to_uniform(alpha):
     return (t1+t2).squeeze(1)
 
 
-def edl_mse_loss(evidence, y, epoch, kl_anneal_epochs):
-    """Bayes-risk MSE loss with annealed KL on misleading evidence."""
+def edl_mse_loss(evidence, y, epoch, kl_anneal_epochs, class_weight=None):
+    """Bayes-risk MSE loss with annealed KL on misleading evidence.
+
+    `class_weight` is an optional per-class tensor, applied to each sample by its true
+    class. It exists for the real M1 distribution, where `critical` is ~5% of rows and an
+    unweighted loss buys most of its accuracy by never predicting it. Weights normalised
+    to mean 1 (see m1_real.class_weights) keep the loss on the same scale as the
+    unweighted one, so the KL annealing schedule needs no retuning.
+
+    Default None reproduces the unweighted loss exactly, which is what the synthetic
+    demo path uses.
+    """
     alpha, S = dirichlet(evidence)
     K = evidence.shape[1]
     p = alpha/S
@@ -73,4 +83,8 @@ def edl_mse_loss(evidence, y, epoch, kl_anneal_epochs):
     var = (p*(1-p)/(S+1)).sum(1)
     lam = min(1.0, epoch/float(kl_anneal_epochs))
     alpha_tilde = yh + (1-yh)*alpha               # keep evidence for the true class
-    return (err + var + lam*kl_to_uniform(alpha_tilde)).mean()
+    per_sample = err + var + lam*kl_to_uniform(alpha_tilde)
+    if class_weight is None:
+        return per_sample.mean()
+    w = torch.as_tensor(class_weight, dtype=per_sample.dtype)[y]
+    return (per_sample*w).sum()/w.sum()

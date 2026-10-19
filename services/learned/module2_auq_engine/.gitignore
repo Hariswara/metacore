@@ -7,3 +7,8 @@ figures/
 # Baseline models + calibration fixture trained on first infer_one.py call. Derived from
 # seeded data, so reproducible from scratch — never a build input.
 .dashboard_cache/
+
+# EDL head + normalisation card fitted on M1's real state distribution, written by
+# train_real.py. Seeded and reproducible from scratch, so it is derived, not a build
+# input. The ONNX model card export_onnx.py --real writes from it IS committed.
+.real_cache/
