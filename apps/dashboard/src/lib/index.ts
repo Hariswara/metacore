@@ -316,6 +316,69 @@ export async function assembleModule1(
   );
 }
 
+export type Module1Weighting = "equal" | "hazard_heavy" | "stress_heavy";
+
+export interface Module1ForecastNode {
+  id: string;
+  island: string;
+  asset: string;
+  /** Constructed vulnerability score at the chosen hour. */
+  current: number;
+  /** The 24 hours up to and including the chosen hour. */
+  history: number[];
+  /** ST-GNN v0.1, t+1 .. t+6. */
+  forecast: number[];
+  persistence: number[];
+  /** The score those hours actually reached; null past the end of the record. */
+  target: number[] | null;
+  components: { hazard: number; fragility: number; stress: number };
+  /** The 64-d node embedding the M1 -> M2 contract reserves. */
+  embedding: number[];
+}
+
+export interface Module1ForecastResult {
+  timestamp_lst: string;
+  /** "test" is held out; "train" is a replay of data the model was fitted on. */
+  split: "train" | "val" | "test" | "none";
+  weighting: Module1Weighting;
+  weights: { hazard: number; fragility: number; stress: number };
+  variant: string;
+  horizon_h: number;
+  history_h: number;
+  /** High-vulnerability threshold: 95th percentile of training scores. */
+  tau: number;
+  embedding_dim: number;
+  has_embedding: boolean;
+  ranking_t1: string[];
+  above_tau_t1: string[];
+  latency_ms: number;
+  data_source: "real" | "synthetic";
+  /** Quality of the vulnerability score itself (a constructed proxy). */
+  quality: string;
+  /** M1 -> M2 contract fields, identical to /assemble's: node_features[i] belongs to nodes[i]. */
+  schema_version: string;
+  feature_names: string[];
+  node_features: number[][];
+  quality_mask: QualityFlag[];
+  observed_fraction: number;
+  nodes: Module1ForecastNode[];
+  test_summary: Record<"stgnn" | "persistence" | "lstm_1d", { rmse_mean: number; onset_recall: number }> | null;
+  generated_ms: number;
+}
+
+// Runs the trained ST-GNN v0.1 via module1.infer.forecast (gateway routers/module1.py).
+// 503 means no checkpoint has been trained on this machine; the detail names the command.
+export async function forecastModule1(
+  timestamp: string,
+  weighting: Module1Weighting,
+): Promise<Module1ForecastResult> {
+  return postJson<Module1ForecastResult>(
+    "/api/module1/forecast",
+    { timestamp, weighting },
+    (detail, status) => new Module1RunError(detail, status),
+  );
+}
+
 // Pairs each ProposedControlAction with its GatingDecision (and M2 input / M4 verdict
 // context, when present) by action_id, in emission order.
 export interface Module3DecisionRow {
