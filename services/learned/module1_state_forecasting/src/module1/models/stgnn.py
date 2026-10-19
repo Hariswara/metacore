@@ -11,7 +11,9 @@ enough to explain line by line.
 * ``GraphFree``  identical, with message passing removed -- isolates what the graph contributes.
 * ``TimeFree``   identical GCN, but sees only the latest hour -- isolates the temporal encoder.
 * ``LSTM1D``     univariate per-node LSTM on the vulnerability history alone: the conventional
-                 one-dimensional forecaster, with no fused features and no graph.
+                 one-dimensional forecaster, with no fused features and no graph. With
+                 ``residual=True`` it gets the same residual head as ST-GNN v0.1, so the comparison
+                 isolates architecture rather than output parameterisation.
 
 Two variants, both kept so results stay reproducible:
 
@@ -84,9 +86,11 @@ class STGNN(nn.Module):
 class LSTM1D(nn.Module):
     """Conventional baseline: each node's own vulnerability history, nothing else."""
 
-    def __init__(self, horizon: int, hidden: int = 32, history_col: int = -1) -> None:
+    def __init__(self, horizon: int, hidden: int = 32, history_col: int = -1,
+                 residual: bool = False) -> None:
         super().__init__()
         self.col = history_col
+        self.residual = residual
         self.lstm = nn.LSTM(1, hidden, batch_first=True)
         self.head = nn.Linear(hidden, horizon)
 
@@ -94,7 +98,11 @@ class LSTM1D(nn.Module):
         b, seq_len, n, _ = x.shape
         seq = x[..., self.col].permute(0, 2, 1).reshape(b * n, seq_len, 1)
         _, (h, _) = self.lstm(seq)
-        return torch.sigmoid(self.head(h[-1])).reshape(b, n, -1)
+        out = self.head(h[-1]).reshape(b, n, -1)
+        if self.residual:
+            last = x[:, -1, :, self.col].unsqueeze(-1)
+            return torch.clamp(last + out, 0.0, 1.0)
+        return torch.sigmoid(out)
 
 
 def persistence(x: torch.Tensor, horizon: int, history_col: int = -1) -> torch.Tensor:

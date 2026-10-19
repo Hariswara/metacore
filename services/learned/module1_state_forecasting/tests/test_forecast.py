@@ -185,6 +185,19 @@ def test_graph_free_variant_cannot_mix_islands_or_nodes() -> None:
     assert d[5] > 0 and torch.all(d[torch.arange(10) != 5] == 0)
 
 
+def test_residual_lstm_starts_from_the_last_score_like_the_stgnn() -> None:
+    """The fair baseline: same output parameterisation as ST-GNN v0.1, so the comparison is
+    about architecture, not about how the head is parameterised."""
+    torch.manual_seed(0)
+    model = LSTM1D(6, residual=True).eval()
+    torch.nn.init.zeros_(model.head.weight)
+    torch.nn.init.zeros_(model.head.bias)
+    x = _toy()
+    with torch.no_grad():
+        y = model(x)
+    assert torch.allclose(y, x[:, -1, :, -1].unsqueeze(-1).expand_as(y))
+
+
 def test_persistence_and_lstm_read_only_the_history_column() -> None:
     x = _toy()
     p = persistence(x, 6)

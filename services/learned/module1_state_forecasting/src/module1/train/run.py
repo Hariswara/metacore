@@ -32,7 +32,9 @@ CONFIG = {
     "history_h": 24, "horizon_h": 6, "hidden": 64, "batch": 64, "lr": 1e-3,
     "max_epochs": 25, "patience": 4, "seed": 7, "event_quantile": 0.95,
 }
-MODELS = ("stgnn", "graph_free", "time_free", "no_weather", "lstm_1d")
+# lstm_1d_residual gives the 1-D baseline the same residual head as ST-GNN v0.1, so "beats the
+# LSTM" measures architecture rather than output parameterisation (added after PR #12 review).
+MODELS = ("stgnn", "graph_free", "time_free", "no_weather", "lstm_1d", "lstm_1d_residual")
 # Architecture variants of the learned models (see models/stgnn.py). Baselines do not change.
 VARIANTS = {"v0": {"gcn_layers": 2, "residual": False},
             "v0.1": {"gcn_layers": 1, "residual": True}}
@@ -48,6 +50,8 @@ def _make(name: str, n_feat: int, a_hat: torch.Tensor, cfg: dict) -> nn.Module:
     h, hid = cfg["horizon_h"], cfg["hidden"]
     if name == "lstm_1d":
         return LSTM1D(h)
+    if name == "lstm_1d_residual":
+        return LSTM1D(h, residual=True)
     return STGNN(n_feat, h, a_hat, hid, use_graph=name != "graph_free",
                  use_time=name != "time_free", **VARIANTS[cfg["variant"]])
 
