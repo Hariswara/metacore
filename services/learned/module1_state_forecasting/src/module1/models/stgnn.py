@@ -26,9 +26,10 @@ Two variants, both kept so results stay reproducible:
 from __future__ import annotations
 
 import torch
+from metacore_contracts.state_schema import EMBEDDING_DIM  # the M1 -> M2 pin, not a local choice
 from torch import nn
 
-EMBEDDING_DIM = 64
+__all__ = ["EMBEDDING_DIM", "GCNLayer", "LSTM1D", "STGNN", "persistence"]
 
 
 class GCNLayer(nn.Module):

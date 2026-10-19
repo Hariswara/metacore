@@ -23,13 +23,13 @@ import torch
 from torch import nn
 
 from module1.graph.build import check_invariants
-from module1.models.stgnn import LSTM1D, STGNN, persistence
+from module1.models.stgnn import EMBEDDING_DIM, LSTM1D, STGNN, persistence
 from module1.train import dataset as ds
 from module1.train import metrics as m
 from module1.train import target as tgt
 
 CONFIG = {
-    "history_h": 24, "horizon_h": 6, "hidden": 64, "batch": 64, "lr": 1e-3,
+    "history_h": 24, "horizon_h": 6, "hidden": EMBEDDING_DIM, "batch": 64, "lr": 1e-3,
     "max_epochs": 25, "patience": 4, "seed": 7, "event_quantile": 0.95,
 }
 # lstm_1d_residual gives the 1-D baseline the same residual head as ST-GNN v0.1, so "beats the

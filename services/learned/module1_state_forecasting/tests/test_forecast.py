@@ -141,6 +141,18 @@ def _toy(b: int = 3, seq_len: int = 24, n: int = 10, f: int = len(ds.FEATURES)):
     return torch.rand(b, seq_len, n, f, generator=g)
 
 
+def test_embedding_width_is_the_contract_pin() -> None:
+    """The node embedding M2 consumes is sized by module1_state_v1.json, not by this module."""
+    from metacore_contracts.state_schema import EMBEDDING_DIM as PIN
+    from module1.models import stgnn
+    from module1.train.run import CONFIG
+    assert stgnn.EMBEDDING_DIM is PIN
+    assert CONFIG["hidden"] == PIN
+    a_hat = torch.tensor(build_graph().normalized(), dtype=torch.float32)
+    model = STGNN(len(ds.FEATURES), 6, a_hat, gcn_layers=1, residual=True)
+    assert model.embed(_toy(b=1)).shape[-1] == PIN
+
+
 def test_stgnn_shapes_bounds_and_embedding_width() -> None:
     a_hat = torch.tensor(build_graph().normalized(), dtype=torch.float32)
     model = STGNN(len(ds.FEATURES), 6, a_hat)
