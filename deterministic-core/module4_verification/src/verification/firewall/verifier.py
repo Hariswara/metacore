@@ -12,6 +12,7 @@ from ..types import (
     RejectionTrace,
     VerificationVerdict,
     Violation,
+    ViolationType,
 )
 from .limits import PhysicsLimitsChecker
 
@@ -24,11 +25,39 @@ class PhysicsVerifier:
         self.applicator = ActionApplicator(self.circuit)
         self.limits_checker = PhysicsLimitsChecker()
 
-    def verify(self, action: ProposedControlAction) -> VerificationVerdict:
-        """Evaluates a proposed action against OpenDSS physical constraints."""
+    def verify(
+        self, action: ProposedControlAction, snapshot: dict | None = None
+    ) -> VerificationVerdict:
+        """Evaluates a proposed action against OpenDSS physical constraints.
+
+        ``snapshot`` is an optional M1 GridStateSnapshot. Without it the action is judged against
+        the model's base case, exactly as before.
+        """
         try:
             # 1. Reset circuit to pristine base state
             self.circuit.reset_to_base()
+
+            # 1b. Load this hour's grid state, if M1 supplied one. A snapshot that does not fit
+            # the twin is a malformed input: reject, never approve on a half-applied state.
+            if snapshot is not None:
+                problems = self.circuit.apply_snapshot(snapshot)
+                if problems:
+                    return self._build_verdict(
+                        action_id=action.action_id,
+                        decision=Decision.DECISION_REJECT,
+                        violations=[
+                            Violation(
+                                type=ViolationType.VIOLATION_TYPE_MALFORMED_ACTION,
+                                element_id=str(snapshot.get("topology_id", "snapshot")),
+                                limit=0.0,
+                                measured=0.0,
+                                margin_fraction=1.0,
+                                attributed_component=f"snapshot: {p}",
+                            )
+                            for p in problems
+                        ],
+                        latency_ms=0.0,
+                    )
 
             # 2. Apply proposed control action
             malformed_violations = self.applicator.apply_action(action)
