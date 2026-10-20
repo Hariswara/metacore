@@ -39,7 +39,7 @@
   "epochs": 120,
   "seed": 0,
   "observed_fraction": 0.42857142857142855,
-  "elapsed_s": 133.8,
+  "elapsed_s": 107.0,
   "label_disclosure": "The 3-class label is discretised from M1's constructed vulnerability proxy V (module1.train.target: hazard x exposure + fragility + stress), which M1 documents as a constructed proxy, never an observation, and carries as QUALITY_INTERPOLATED. No dataset records an observed microgrid safety class. Class cuts are quantiles of the TRAINING split only. Accuracy and ECE are therefore measured against a constructed target: they state internal consistency with M1's proxy, not the prediction of real asset failures.",
   "classification_on_real_hourly_states": [
     {
@@ -66,6 +66,7 @@
   ],
   "two_axis_trigger": {
     "value_threshold": 0.9501,
+    "value_threshold_exact": 0.9500935077667236,
     "observed_fraction_floor": 0.35,
     "rows": [
       {
