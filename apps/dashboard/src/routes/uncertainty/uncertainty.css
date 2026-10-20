@@ -393,3 +393,28 @@
   border-radius: 4px;
   background: color-mix(in srgb, var(--amber) 16%, transparent);
 }
+
+/* Shown whenever the REAL head's numbers are on screen. Its 3-class label is discretised
+   from M1's constructed vulnerability proxy, not an observed safety class, and that fact
+   has to travel with the numbers rather than live only in the report. */
+.uncertainty__disclosure {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--violet, #a78bfa);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--violet, #a78bfa) 8%, transparent);
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+
+.uncertainty__disclosure strong {
+  color: var(--violet, #a78bfa);
+}
+
+/* The head badge sits beside the live/fallback one. Which head produced a number is not
+   decoration: the two are fitted on different distributions and are not comparable. */
+.uncertainty__badge--head {
+  letter-spacing: 0.02em;
+}
