@@ -144,6 +144,6 @@
   },
   "verification": {
     "atol": 1e-05,
-    "max_abs_diff_vs_torch": 1.8007444980020655e-32
+    "max_abs_diff_vs_torch": 0.0
   }
 }
