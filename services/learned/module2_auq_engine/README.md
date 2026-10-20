@@ -403,6 +403,53 @@ hard states, not an artifact of the test period. Median `u` is 0.06–0.08 acros
 splits. `u` also still varies *within* the real distribution: mean `u` on `critical` rows
 exceeds `safe` rows, so not-saturating did not come at the cost of going flat.
 
+### Serving it: `head=` on `/module2/run`
+
+Both heads are reachable, and which one answered is part of the answer:
+
+```bash
+# default -- the synthetic head, unchanged
+curl -s localhost:8000/api/module2/run -H 'content-type: application/json'   -d '{"features": [...28...], "quality_mask": [...28...]}'
+
+# opt in to the real head
+curl -s localhost:8000/api/module2/run -H 'content-type: application/json'   -d '{"features": [...], "quality_mask": [...], "head": "real"}'
+
+curl -s -X POST localhost:8000/api/module2/warm       # prime it, ~190 ms
+```
+
+| | `head=synthetic` (default) | `head=real` |
+|---|---|---|
+| artifact | `edl.onnx` | `edl_real.onnx` |
+| script | `infer_one.py` | `serve_real.py` |
+| cold / warm | 13.6 s / 3.1 s | **0.56 s** (no fixture, no calibration) |
+| `baselines` | present | `null` — fitted on synthetic data, so not comparable |
+| `label_disclosure` | absent | the constructed-proxy sentence |
+| novelty-slider form | yes | **422** — no interpretation for a manufactured state |
+
+`head` defaults to `synthetic`, so the fallback path is unchanged unless asked otherwise.
+The real head is a separate script rather than a branch inside `infer_one.py`, so no edit
+to it can change what the fallback returns. A missing `edl_real.onnx` is a **503** naming
+the command that builds it, never a 500 — it is derived and git-ignored, so its absence on
+a fresh clone is ordinary.
+
+### The demo trap worth knowing
+
+Uncertainty on real states concentrates sharply in the **evening peak**:
+
+| hours | share of all hours | share of rows with `u` > 0.99 | mean `u` |
+|---|---|---|---|
+| 18:00–20:00 | 12.5% | **62.0%** | 0.538 |
+| all others | 87.5% | 38.0% | 0.135 |
+
+18:00 alone has **51.9%** of its rows above `u` = 0.99, against 2.8% outside the peak —
+and `module1.assemble`'s **default timestamp is `2024-06-15T18:00`**. A demo left on
+defaults therefore shows `u` = 1.000 on the real head and looks identical to the
+saturation this work fixed. The dashboard labels that preset "u saturates here".
+
+This is the head declining to commit where the grid is most stressed and the `critical`
+class concentrates, which is defensible — but it is also the honest limitation: the engine
+is least confident exactly when a decision matters most.
+
 ### Reproducing it
 
 ```bash
