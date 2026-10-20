@@ -197,6 +197,13 @@ def main_real():
                                   "are scaled by 1, not by the 1e-6 epsilon.",
                           "mean": [float(v) for v in ckpt["mu"]],
                           "std": [float(v) for v in ckpt["sd"]]},
+        "trigger": {"note": "Calibrated on real training u at train time, so serving "
+                            "needs no calibration pass. Fitting it on demand would mean "
+                            "rebuilding M1's 17,544-hour record and re-scoring 400 rows "
+                            "on the first request -- a cold start on the live toggle.",
+                    "value_threshold": ckpt["value_threshold"],
+                    "value_false_alarm_rate": ckpt["value_false_alarm_rate"],
+                    "observed_fraction_floor": ckpt["observed_fraction_floor"]},
         "label": {"source": "discretised M1 vulnerability proxy V",
                   "weighting": ckpt["weighting"],
                   "cuts_quantile": ckpt["class_cuts_quantile"],

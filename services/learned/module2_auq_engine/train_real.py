@@ -240,7 +240,10 @@ def trigger_table(model, nz, states, cfg_trigger, train_u):
     nominal_of = states.observed_fraction
     blackout_of = BLACKOUT_OBSERVED/28
 
-    out = {"value_threshold": round(vthr, 4), "observed_fraction_floor": floor, "rows": []}
+    # Rounded for the report, full precision for the artifact: a threshold rounded to 4dp
+    # and one fitted at full precision disagree on the states that sit exactly on it.
+    out = {"value_threshold": round(vthr, 4), "value_threshold_exact": vthr,
+           "observed_fraction_floor": floor, "rows": []}
     for name, of in (("real states, nominal mask", nominal_of),
                      ("real states, temporal block lost", blackout_of)):
         outcomes = fire(u, of)
@@ -347,6 +350,13 @@ def main() -> int:
     torch.save({
         "state_dict": edl_m.state_dict(),
         "mu": nz.mu, "sd": nz.sd,
+        # Calibrated here, not at serve time. Fitting it on demand would mean rebuilding
+        # M1's whole 17,544-hour record and re-scoring 400 calibration rows on the first
+        # request -- a cold start on the live toggle. It is a training-set property, so it
+        # belongs in the artifact next to mu/sd.
+        "value_threshold": triggers["value_threshold_exact"],
+        "value_false_alarm_rate": cfg["trigger"]["value_false_alarm_rate"],
+        "observed_fraction_floor": cfg["trigger"]["observed_fraction_floor"],
         "n_features": int(xtr.shape[1]),
         "classes": len(m1_real.CLASS_NAMES),
         "class_names": list(m1_real.CLASS_NAMES),
