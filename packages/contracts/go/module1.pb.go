@@ -144,6 +144,18 @@ func (HazardSeverity) EnumDescriptor() ([]byte, []int) {
 // ---------------------------------------------------------------- M1 -> M2
 // The state representation. Frozen before the live stream exists so M2's evidential head can be
 // sized against a real schema rather than a guess.
+//
+// PINNED AT v1.0. The concrete values a consumer needs -- embedding_dim, the ordered
+// feature_names, per-feature units and sources, and which features are QUALITY_OBSERVED rather
+// than merely present -- live in a machine-readable pin next to the generated stubs:
+//
+//	packages/contracts/python/metacore_contracts/schema/module1_state_v1.json
+//	from metacore_contracts.state_schema import EMBEDDING_DIM, FEATURE_NAMES, SCHEMA_VERSION
+//
+// A proto cannot say what a `repeated string feature_names` contains, so that file is the half of
+// the contract that lets M2 drop its mock. embedding_dim = 64, len(feature_names) = 28.
+// Reordering or resizing is a minor bump; renaming or removing a feature is a major bump and
+// needs an adapter.
 type StateRepresentation struct {
 	state        protoimpl.MessageState `protogen:"open.v1"`
 	Envelope     *v1.Envelope           `protobuf:"bytes,1,opt,name=envelope,proto3" json:"envelope,omitempty"`
@@ -259,13 +271,26 @@ func (x *StateRepresentation) GetDegraded() bool {
 // ---------------------------------------------------------------- M1 -> M4
 // The canonical network model. M1 and M4 must instantiate an identical physical state, so the
 // topology is owned in one place and versioned.
+//
+// DRAFT v1.0 (topology "northern-islands-v1"), pending joint M1/M4 sign-off. The concrete network
+// -- buses, lines, assets, the node map from M1's forecaster graph, and the provenance of every
+// value -- is pinned next to the generated stubs, with the OpenDSS model generated from the same
+// table:
+//
+//	packages/contracts/python/metacore_contracts/schema/module1_topology_v1.json
+//	packages/contracts/python/metacore_contracts/topology/northern_islands_v1.dss
+//	from metacore_contracts.topology_schema import DSS_PATH, TOPOLOGY_ID, node_map
+//
+// v1.0 adds `assets` (field 6) to GridTopology, `quality` to NodeState and
+// `assets_out_of_service` to GridStateSnapshot. All additive: v0 readers are unaffected.
 type GridTopology struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	Envelope          *v1.Envelope           `protobuf:"bytes,1,opt,name=envelope,proto3" json:"envelope,omitempty"`
-	TopologyId        string                 `protobuf:"bytes,2,opt,name=topology_id,json=topologyId,proto3" json:"topology_id,omitempty"` // e.g. "delft-3island-v1"
+	TopologyId        string                 `protobuf:"bytes,2,opt,name=topology_id,json=topologyId,proto3" json:"topology_id,omitempty"` // e.g. "northern-islands-v1"
 	OpendssMasterFile string                 `protobuf:"bytes,3,opt,name=opendss_master_file,json=opendssMasterFile,proto3" json:"opendss_master_file,omitempty"`
-	Nodes             []*Node                `protobuf:"bytes,4,rep,name=nodes,proto3" json:"nodes,omitempty"`
-	Edges             []*Edge                `protobuf:"bytes,5,rep,name=edges,proto3" json:"edges,omitempty"`
+	Nodes             []*Node                `protobuf:"bytes,4,rep,name=nodes,proto3" json:"nodes,omitempty"`   // buses
+	Edges             []*Edge                `protobuf:"bytes,5,rep,name=edges,proto3" json:"edges,omitempty"`   // lines
+	Assets            []*Asset               `protobuf:"bytes,6,rep,name=assets,proto3" json:"assets,omitempty"` // generating assets, each attached to a bus
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -335,6 +360,97 @@ func (x *GridTopology) GetEdges() []*Edge {
 	return nil
 }
 
+func (x *GridTopology) GetAssets() []*Asset {
+	if x != nil {
+		return x.Assets
+	}
+	return nil
+}
+
+type Asset struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Element       string                 `protobuf:"bytes,1,opt,name=element,proto3" json:"element,omitempty"` // OpenDSS element name, e.g. "ELU_HYB_BESS"
+	Bus           string                 `protobuf:"bytes,2,opt,name=bus,proto3" json:"bus,omitempty"`         // Node.node_id it connects to
+	AssetType     AssetType              `protobuf:"varint,3,opt,name=asset_type,json=assetType,proto3,enum=metacore.module1.v1.AssetType" json:"asset_type,omitempty"`
+	RatingKva     float64                `protobuf:"fixed64,4,opt,name=rating_kva,json=ratingKva,proto3" json:"rating_kva,omitempty"`
+	InService     bool                   `protobuf:"varint,5,opt,name=in_service,json=inService,proto3" json:"in_service,omitempty"`
+	GridForming   bool                   `protobuf:"varint,6,opt,name=grid_forming,json=gridForming,proto3" json:"grid_forming,omitempty"` // the island's reference source (lead diesel genset)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Asset) Reset() {
+	*x = Asset{}
+	mi := &file_module1_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Asset) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Asset) ProtoMessage() {}
+
+func (x *Asset) ProtoReflect() protoreflect.Message {
+	mi := &file_module1_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Asset.ProtoReflect.Descriptor instead.
+func (*Asset) Descriptor() ([]byte, []int) {
+	return file_module1_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *Asset) GetElement() string {
+	if x != nil {
+		return x.Element
+	}
+	return ""
+}
+
+func (x *Asset) GetBus() string {
+	if x != nil {
+		return x.Bus
+	}
+	return ""
+}
+
+func (x *Asset) GetAssetType() AssetType {
+	if x != nil {
+		return x.AssetType
+	}
+	return AssetType_ASSET_TYPE_UNSPECIFIED
+}
+
+func (x *Asset) GetRatingKva() float64 {
+	if x != nil {
+		return x.RatingKva
+	}
+	return 0
+}
+
+func (x *Asset) GetInService() bool {
+	if x != nil {
+		return x.InService
+	}
+	return false
+}
+
+func (x *Asset) GetGridForming() bool {
+	if x != nil {
+		return x.GridForming
+	}
+	return false
+}
+
 type Node struct {
 	state        protoimpl.MessageState `protogen:"open.v1"`
 	NodeId       string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
@@ -350,7 +466,7 @@ type Node struct {
 
 func (x *Node) Reset() {
 	*x = Node{}
-	mi := &file_module1_proto_msgTypes[2]
+	mi := &file_module1_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -362,7 +478,7 @@ func (x *Node) String() string {
 func (*Node) ProtoMessage() {}
 
 func (x *Node) ProtoReflect() protoreflect.Message {
-	mi := &file_module1_proto_msgTypes[2]
+	mi := &file_module1_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -375,7 +491,7 @@ func (x *Node) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Node.ProtoReflect.Descriptor instead.
 func (*Node) Descriptor() ([]byte, []int) {
-	return file_module1_proto_rawDescGZIP(), []int{2}
+	return file_module1_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *Node) GetNodeId() string {
@@ -433,7 +549,7 @@ type Edge struct {
 
 func (x *Edge) Reset() {
 	*x = Edge{}
-	mi := &file_module1_proto_msgTypes[3]
+	mi := &file_module1_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -445,7 +561,7 @@ func (x *Edge) String() string {
 func (*Edge) ProtoMessage() {}
 
 func (x *Edge) ProtoReflect() protoreflect.Message {
-	mi := &file_module1_proto_msgTypes[3]
+	mi := &file_module1_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -458,7 +574,7 @@ func (x *Edge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Edge.ProtoReflect.Descriptor instead.
 func (*Edge) Descriptor() ([]byte, []int) {
-	return file_module1_proto_rawDescGZIP(), []int{3}
+	return file_module1_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Edge) GetEdgeId() string {
@@ -498,18 +614,19 @@ func (x *Edge) GetAmpacityA() float64 {
 
 // The electrical snapshot M4 loads into its digital twin.
 type GridStateSnapshot struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Envelope      *v1.Envelope           `protobuf:"bytes,1,opt,name=envelope,proto3" json:"envelope,omitempty"`
-	TopologyId    string                 `protobuf:"bytes,2,opt,name=topology_id,json=topologyId,proto3" json:"topology_id,omitempty"`
-	NodeStates    []*NodeState           `protobuf:"bytes,3,rep,name=node_states,json=nodeStates,proto3" json:"node_states,omitempty"`
-	UpdatePeriodS float64                `protobuf:"fixed64,4,opt,name=update_period_s,json=updatePeriodS,proto3" json:"update_period_s,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Envelope           *v1.Envelope           `protobuf:"bytes,1,opt,name=envelope,proto3" json:"envelope,omitempty"`
+	TopologyId         string                 `protobuf:"bytes,2,opt,name=topology_id,json=topologyId,proto3" json:"topology_id,omitempty"`
+	NodeStates         []*NodeState           `protobuf:"bytes,3,rep,name=node_states,json=nodeStates,proto3" json:"node_states,omitempty"`
+	UpdatePeriodS      float64                `protobuf:"fixed64,4,opt,name=update_period_s,json=updatePeriodS,proto3" json:"update_period_s,omitempty"`                // 3600 offline: the record is hourly at best
+	AssetsOutOfService []string               `protobuf:"bytes,5,rep,name=assets_out_of_service,json=assetsOutOfService,proto3" json:"assets_out_of_service,omitempty"` // Asset.element values M4 must disable
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *GridStateSnapshot) Reset() {
 	*x = GridStateSnapshot{}
-	mi := &file_module1_proto_msgTypes[4]
+	mi := &file_module1_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -521,7 +638,7 @@ func (x *GridStateSnapshot) String() string {
 func (*GridStateSnapshot) ProtoMessage() {}
 
 func (x *GridStateSnapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_module1_proto_msgTypes[4]
+	mi := &file_module1_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -534,7 +651,7 @@ func (x *GridStateSnapshot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GridStateSnapshot.ProtoReflect.Descriptor instead.
 func (*GridStateSnapshot) Descriptor() ([]byte, []int) {
-	return file_module1_proto_rawDescGZIP(), []int{4}
+	return file_module1_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GridStateSnapshot) GetEnvelope() *v1.Envelope {
@@ -565,20 +682,30 @@ func (x *GridStateSnapshot) GetUpdatePeriodS() float64 {
 	return 0
 }
 
+func (x *GridStateSnapshot) GetAssetsOutOfService() []string {
+	if x != nil {
+		return x.AssetsOutOfService
+	}
+	return nil
+}
+
 type NodeState struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
-	VoltagePu     float64                `protobuf:"fixed64,2,opt,name=voltage_pu,json=voltagePu,proto3" json:"voltage_pu,omitempty"`
-	PKw           float64                `protobuf:"fixed64,3,opt,name=p_kw,json=pKw,proto3" json:"p_kw,omitempty"`
-	QKvar         float64                `protobuf:"fixed64,4,opt,name=q_kvar,json=qKvar,proto3" json:"q_kvar,omitempty"`
-	SocFraction   float64                `protobuf:"fixed64,5,opt,name=soc_fraction,json=socFraction,proto3" json:"soc_fraction,omitempty"` // storage only
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	NodeId      string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	VoltagePu   float64                `protobuf:"fixed64,2,opt,name=voltage_pu,json=voltagePu,proto3" json:"voltage_pu,omitempty"`
+	PKw         float64                `protobuf:"fixed64,3,opt,name=p_kw,json=pKw,proto3" json:"p_kw,omitempty"`
+	QKvar       float64                `protobuf:"fixed64,4,opt,name=q_kvar,json=qKvar,proto3" json:"q_kvar,omitempty"`
+	SocFraction float64                `protobuf:"fixed64,5,opt,name=soc_fraction,json=socFraction,proto3" json:"soc_fraction,omitempty"` // storage only
+	// Per field, in the order voltage_pu, p_kw, q_kvar, soc_fraction. A QUALITY_MISSING field's
+	// value is meaningless and must not be applied (proto3 cannot distinguish 0 from unset).
+	Quality       *v1.QualityMask `protobuf:"bytes,6,opt,name=quality,proto3" json:"quality,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *NodeState) Reset() {
 	*x = NodeState{}
-	mi := &file_module1_proto_msgTypes[5]
+	mi := &file_module1_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -590,7 +717,7 @@ func (x *NodeState) String() string {
 func (*NodeState) ProtoMessage() {}
 
 func (x *NodeState) ProtoReflect() protoreflect.Message {
-	mi := &file_module1_proto_msgTypes[5]
+	mi := &file_module1_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -603,7 +730,7 @@ func (x *NodeState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeState.ProtoReflect.Descriptor instead.
 func (*NodeState) Descriptor() ([]byte, []int) {
-	return file_module1_proto_rawDescGZIP(), []int{5}
+	return file_module1_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *NodeState) GetNodeId() string {
@@ -641,6 +768,13 @@ func (x *NodeState) GetSocFraction() float64 {
 	return 0
 }
 
+func (x *NodeState) GetQuality() *v1.QualityMask {
+	if x != nil {
+		return x.Quality
+	}
+	return nil
+}
+
 // ---------------------------------------------------------------- M1 -> M3
 // Secondary input to the Meta-RL gate state, alongside M2's uncertainty scalar.
 type SystemContext struct {
@@ -657,7 +791,7 @@ type SystemContext struct {
 
 func (x *SystemContext) Reset() {
 	*x = SystemContext{}
-	mi := &file_module1_proto_msgTypes[6]
+	mi := &file_module1_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -669,7 +803,7 @@ func (x *SystemContext) String() string {
 func (*SystemContext) ProtoMessage() {}
 
 func (x *SystemContext) ProtoReflect() protoreflect.Message {
-	mi := &file_module1_proto_msgTypes[6]
+	mi := &file_module1_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -682,7 +816,7 @@ func (x *SystemContext) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SystemContext.ProtoReflect.Descriptor instead.
 func (*SystemContext) Descriptor() ([]byte, []int) {
-	return file_module1_proto_rawDescGZIP(), []int{6}
+	return file_module1_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *SystemContext) GetEnvelope() *v1.Envelope {
@@ -739,7 +873,7 @@ type VulnerabilityForecast struct {
 
 func (x *VulnerabilityForecast) Reset() {
 	*x = VulnerabilityForecast{}
-	mi := &file_module1_proto_msgTypes[7]
+	mi := &file_module1_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -751,7 +885,7 @@ func (x *VulnerabilityForecast) String() string {
 func (*VulnerabilityForecast) ProtoMessage() {}
 
 func (x *VulnerabilityForecast) ProtoReflect() protoreflect.Message {
-	mi := &file_module1_proto_msgTypes[7]
+	mi := &file_module1_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -764,7 +898,7 @@ func (x *VulnerabilityForecast) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VulnerabilityForecast.ProtoReflect.Descriptor instead.
 func (*VulnerabilityForecast) Descriptor() ([]byte, []int) {
-	return file_module1_proto_rawDescGZIP(), []int{7}
+	return file_module1_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *VulnerabilityForecast) GetEnvelope() *v1.Envelope {
@@ -798,7 +932,7 @@ type NodeVulnerability struct {
 
 func (x *NodeVulnerability) Reset() {
 	*x = NodeVulnerability{}
-	mi := &file_module1_proto_msgTypes[8]
+	mi := &file_module1_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -810,7 +944,7 @@ func (x *NodeVulnerability) String() string {
 func (*NodeVulnerability) ProtoMessage() {}
 
 func (x *NodeVulnerability) ProtoReflect() protoreflect.Message {
-	mi := &file_module1_proto_msgTypes[8]
+	mi := &file_module1_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -823,7 +957,7 @@ func (x *NodeVulnerability) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeVulnerability.ProtoReflect.Descriptor instead.
 func (*NodeVulnerability) Descriptor() ([]byte, []int) {
-	return file_module1_proto_rawDescGZIP(), []int{8}
+	return file_module1_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *NodeVulnerability) GetNodeId() string {
@@ -849,7 +983,7 @@ type TopologyRequest struct {
 
 func (x *TopologyRequest) Reset() {
 	*x = TopologyRequest{}
-	mi := &file_module1_proto_msgTypes[9]
+	mi := &file_module1_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -861,7 +995,7 @@ func (x *TopologyRequest) String() string {
 func (*TopologyRequest) ProtoMessage() {}
 
 func (x *TopologyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_module1_proto_msgTypes[9]
+	mi := &file_module1_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -874,7 +1008,7 @@ func (x *TopologyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TopologyRequest.ProtoReflect.Descriptor instead.
 func (*TopologyRequest) Descriptor() ([]byte, []int) {
-	return file_module1_proto_rawDescGZIP(), []int{9}
+	return file_module1_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *TopologyRequest) GetTopologyId() string {
@@ -893,7 +1027,7 @@ type StateRequest struct {
 
 func (x *StateRequest) Reset() {
 	*x = StateRequest{}
-	mi := &file_module1_proto_msgTypes[10]
+	mi := &file_module1_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -905,7 +1039,7 @@ func (x *StateRequest) String() string {
 func (*StateRequest) ProtoMessage() {}
 
 func (x *StateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_module1_proto_msgTypes[10]
+	mi := &file_module1_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -918,7 +1052,7 @@ func (x *StateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StateRequest.ProtoReflect.Descriptor instead.
 func (*StateRequest) Descriptor() ([]byte, []int) {
-	return file_module1_proto_rawDescGZIP(), []int{10}
+	return file_module1_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *StateRequest) GetScenario() *v1.ScenarioRef {
@@ -936,7 +1070,7 @@ type HealthRequest struct {
 
 func (x *HealthRequest) Reset() {
 	*x = HealthRequest{}
-	mi := &file_module1_proto_msgTypes[11]
+	mi := &file_module1_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -948,7 +1082,7 @@ func (x *HealthRequest) String() string {
 func (*HealthRequest) ProtoMessage() {}
 
 func (x *HealthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_module1_proto_msgTypes[11]
+	mi := &file_module1_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -961,7 +1095,7 @@ func (x *HealthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthRequest.ProtoReflect.Descriptor instead.
 func (*HealthRequest) Descriptor() ([]byte, []int) {
-	return file_module1_proto_rawDescGZIP(), []int{11}
+	return file_module1_proto_rawDescGZIP(), []int{12}
 }
 
 var File_module1_proto protoreflect.FileDescriptor
@@ -979,14 +1113,25 @@ const file_module1_proto_rawDesc = "" +
 	"\rfeature_names\x18\x06 \x03(\tR\ffeatureNames\x12#\n" +
 	"\rnode_features\x18\a \x03(\x02R\fnodeFeatures\x129\n" +
 	"\aquality\x18\b \x01(\v2\x1f.metacore.common.v1.QualityMaskR\aquality\x12\x1a\n" +
-	"\bdegraded\x18\t \x01(\bR\bdegraded\"\xfb\x01\n" +
+	"\bdegraded\x18\t \x01(\bR\bdegraded\"\xaf\x02\n" +
 	"\fGridTopology\x128\n" +
 	"\benvelope\x18\x01 \x01(\v2\x1c.metacore.common.v1.EnvelopeR\benvelope\x12\x1f\n" +
 	"\vtopology_id\x18\x02 \x01(\tR\n" +
 	"topologyId\x12.\n" +
 	"\x13opendss_master_file\x18\x03 \x01(\tR\x11opendssMasterFile\x12/\n" +
 	"\x05nodes\x18\x04 \x03(\v2\x19.metacore.module1.v1.NodeR\x05nodes\x12/\n" +
-	"\x05edges\x18\x05 \x03(\v2\x19.metacore.module1.v1.EdgeR\x05edges\"\xd8\x01\n" +
+	"\x05edges\x18\x05 \x03(\v2\x19.metacore.module1.v1.EdgeR\x05edges\x122\n" +
+	"\x06assets\x18\x06 \x03(\v2\x1a.metacore.module1.v1.AssetR\x06assets\"\xd3\x01\n" +
+	"\x05Asset\x12\x18\n" +
+	"\aelement\x18\x01 \x01(\tR\aelement\x12\x10\n" +
+	"\x03bus\x18\x02 \x01(\tR\x03bus\x12=\n" +
+	"\n" +
+	"asset_type\x18\x03 \x01(\x0e2\x1e.metacore.module1.v1.AssetTypeR\tassetType\x12\x1d\n" +
+	"\n" +
+	"rating_kva\x18\x04 \x01(\x01R\tratingKva\x12\x1d\n" +
+	"\n" +
+	"in_service\x18\x05 \x01(\bR\tinService\x12!\n" +
+	"\fgrid_forming\x18\x06 \x01(\bR\vgridForming\"\xd8\x01\n" +
 	"\x04Node\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12=\n" +
 	"\n" +
@@ -1002,21 +1147,23 @@ const file_module1_proto_rawDesc = "" +
 	"\ato_node\x18\x03 \x01(\tR\x06toNode\x12\x1b\n" +
 	"\tlength_km\x18\x04 \x01(\x01R\blengthKm\x12\x1d\n" +
 	"\n" +
-	"ampacity_a\x18\x05 \x01(\x01R\tampacityA\"\xd7\x01\n" +
+	"ampacity_a\x18\x05 \x01(\x01R\tampacityA\"\x8a\x02\n" +
 	"\x11GridStateSnapshot\x128\n" +
 	"\benvelope\x18\x01 \x01(\v2\x1c.metacore.common.v1.EnvelopeR\benvelope\x12\x1f\n" +
 	"\vtopology_id\x18\x02 \x01(\tR\n" +
 	"topologyId\x12?\n" +
 	"\vnode_states\x18\x03 \x03(\v2\x1e.metacore.module1.v1.NodeStateR\n" +
 	"nodeStates\x12&\n" +
-	"\x0fupdate_period_s\x18\x04 \x01(\x01R\rupdatePeriodS\"\x90\x01\n" +
+	"\x0fupdate_period_s\x18\x04 \x01(\x01R\rupdatePeriodS\x121\n" +
+	"\x15assets_out_of_service\x18\x05 \x03(\tR\x12assetsOutOfService\"\xcb\x01\n" +
 	"\tNodeState\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1d\n" +
 	"\n" +
 	"voltage_pu\x18\x02 \x01(\x01R\tvoltagePu\x12\x11\n" +
 	"\x04p_kw\x18\x03 \x01(\x01R\x03pKw\x12\x15\n" +
 	"\x06q_kvar\x18\x04 \x01(\x01R\x05qKvar\x12!\n" +
-	"\fsoc_fraction\x18\x05 \x01(\x01R\vsocFraction\"\xdb\x02\n" +
+	"\fsoc_fraction\x18\x05 \x01(\x01R\vsocFraction\x129\n" +
+	"\aquality\x18\x06 \x01(\v2\x1f.metacore.common.v1.QualityMaskR\aquality\"\xdb\x02\n" +
 	"\rSystemContext\x128\n" +
 	"\benvelope\x18\x01 \x01(\v2\x1c.metacore.common.v1.EnvelopeR\benvelope\x124\n" +
 	"\x16max_node_vulnerability\x18\x02 \x01(\x02R\x14maxNodeVulnerability\x126\n" +
@@ -1072,56 +1219,60 @@ func file_module1_proto_rawDescGZIP() []byte {
 }
 
 var file_module1_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_module1_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_module1_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_module1_proto_goTypes = []any{
 	(AssetType)(0),                // 0: metacore.module1.v1.AssetType
 	(HazardSeverity)(0),           // 1: metacore.module1.v1.HazardSeverity
 	(*StateRepresentation)(nil),   // 2: metacore.module1.v1.StateRepresentation
 	(*GridTopology)(nil),          // 3: metacore.module1.v1.GridTopology
-	(*Node)(nil),                  // 4: metacore.module1.v1.Node
-	(*Edge)(nil),                  // 5: metacore.module1.v1.Edge
-	(*GridStateSnapshot)(nil),     // 6: metacore.module1.v1.GridStateSnapshot
-	(*NodeState)(nil),             // 7: metacore.module1.v1.NodeState
-	(*SystemContext)(nil),         // 8: metacore.module1.v1.SystemContext
-	(*VulnerabilityForecast)(nil), // 9: metacore.module1.v1.VulnerabilityForecast
-	(*NodeVulnerability)(nil),     // 10: metacore.module1.v1.NodeVulnerability
-	(*TopologyRequest)(nil),       // 11: metacore.module1.v1.TopologyRequest
-	(*StateRequest)(nil),          // 12: metacore.module1.v1.StateRequest
-	(*HealthRequest)(nil),         // 13: metacore.module1.v1.HealthRequest
-	(*v1.Envelope)(nil),           // 14: metacore.common.v1.Envelope
-	(*v1.QualityMask)(nil),        // 15: metacore.common.v1.QualityMask
-	(*v1.ScenarioRef)(nil),        // 16: metacore.common.v1.ScenarioRef
-	(*v1.Health)(nil),             // 17: metacore.common.v1.Health
+	(*Asset)(nil),                 // 4: metacore.module1.v1.Asset
+	(*Node)(nil),                  // 5: metacore.module1.v1.Node
+	(*Edge)(nil),                  // 6: metacore.module1.v1.Edge
+	(*GridStateSnapshot)(nil),     // 7: metacore.module1.v1.GridStateSnapshot
+	(*NodeState)(nil),             // 8: metacore.module1.v1.NodeState
+	(*SystemContext)(nil),         // 9: metacore.module1.v1.SystemContext
+	(*VulnerabilityForecast)(nil), // 10: metacore.module1.v1.VulnerabilityForecast
+	(*NodeVulnerability)(nil),     // 11: metacore.module1.v1.NodeVulnerability
+	(*TopologyRequest)(nil),       // 12: metacore.module1.v1.TopologyRequest
+	(*StateRequest)(nil),          // 13: metacore.module1.v1.StateRequest
+	(*HealthRequest)(nil),         // 14: metacore.module1.v1.HealthRequest
+	(*v1.Envelope)(nil),           // 15: metacore.common.v1.Envelope
+	(*v1.QualityMask)(nil),        // 16: metacore.common.v1.QualityMask
+	(*v1.ScenarioRef)(nil),        // 17: metacore.common.v1.ScenarioRef
+	(*v1.Health)(nil),             // 18: metacore.common.v1.Health
 }
 var file_module1_proto_depIdxs = []int32{
-	14, // 0: metacore.module1.v1.StateRepresentation.envelope:type_name -> metacore.common.v1.Envelope
-	15, // 1: metacore.module1.v1.StateRepresentation.quality:type_name -> metacore.common.v1.QualityMask
-	14, // 2: metacore.module1.v1.GridTopology.envelope:type_name -> metacore.common.v1.Envelope
-	4,  // 3: metacore.module1.v1.GridTopology.nodes:type_name -> metacore.module1.v1.Node
-	5,  // 4: metacore.module1.v1.GridTopology.edges:type_name -> metacore.module1.v1.Edge
-	0,  // 5: metacore.module1.v1.Node.asset_type:type_name -> metacore.module1.v1.AssetType
-	14, // 6: metacore.module1.v1.GridStateSnapshot.envelope:type_name -> metacore.common.v1.Envelope
-	7,  // 7: metacore.module1.v1.GridStateSnapshot.node_states:type_name -> metacore.module1.v1.NodeState
-	14, // 8: metacore.module1.v1.SystemContext.envelope:type_name -> metacore.common.v1.Envelope
-	1,  // 9: metacore.module1.v1.SystemContext.severity:type_name -> metacore.module1.v1.HazardSeverity
-	14, // 10: metacore.module1.v1.VulnerabilityForecast.envelope:type_name -> metacore.common.v1.Envelope
-	10, // 11: metacore.module1.v1.VulnerabilityForecast.nodes:type_name -> metacore.module1.v1.NodeVulnerability
-	16, // 12: metacore.module1.v1.StateRequest.scenario:type_name -> metacore.common.v1.ScenarioRef
-	11, // 13: metacore.module1.v1.StateRepresentationService.GetTopology:input_type -> metacore.module1.v1.TopologyRequest
-	12, // 14: metacore.module1.v1.StateRepresentationService.StreamState:input_type -> metacore.module1.v1.StateRequest
-	12, // 15: metacore.module1.v1.StateRepresentationService.StreamSnapshot:input_type -> metacore.module1.v1.StateRequest
-	12, // 16: metacore.module1.v1.StateRepresentationService.StreamContext:input_type -> metacore.module1.v1.StateRequest
-	13, // 17: metacore.module1.v1.StateRepresentationService.Health:input_type -> metacore.module1.v1.HealthRequest
-	3,  // 18: metacore.module1.v1.StateRepresentationService.GetTopology:output_type -> metacore.module1.v1.GridTopology
-	2,  // 19: metacore.module1.v1.StateRepresentationService.StreamState:output_type -> metacore.module1.v1.StateRepresentation
-	6,  // 20: metacore.module1.v1.StateRepresentationService.StreamSnapshot:output_type -> metacore.module1.v1.GridStateSnapshot
-	8,  // 21: metacore.module1.v1.StateRepresentationService.StreamContext:output_type -> metacore.module1.v1.SystemContext
-	17, // 22: metacore.module1.v1.StateRepresentationService.Health:output_type -> metacore.common.v1.Health
-	18, // [18:23] is the sub-list for method output_type
-	13, // [13:18] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	15, // 0: metacore.module1.v1.StateRepresentation.envelope:type_name -> metacore.common.v1.Envelope
+	16, // 1: metacore.module1.v1.StateRepresentation.quality:type_name -> metacore.common.v1.QualityMask
+	15, // 2: metacore.module1.v1.GridTopology.envelope:type_name -> metacore.common.v1.Envelope
+	5,  // 3: metacore.module1.v1.GridTopology.nodes:type_name -> metacore.module1.v1.Node
+	6,  // 4: metacore.module1.v1.GridTopology.edges:type_name -> metacore.module1.v1.Edge
+	4,  // 5: metacore.module1.v1.GridTopology.assets:type_name -> metacore.module1.v1.Asset
+	0,  // 6: metacore.module1.v1.Asset.asset_type:type_name -> metacore.module1.v1.AssetType
+	0,  // 7: metacore.module1.v1.Node.asset_type:type_name -> metacore.module1.v1.AssetType
+	15, // 8: metacore.module1.v1.GridStateSnapshot.envelope:type_name -> metacore.common.v1.Envelope
+	8,  // 9: metacore.module1.v1.GridStateSnapshot.node_states:type_name -> metacore.module1.v1.NodeState
+	16, // 10: metacore.module1.v1.NodeState.quality:type_name -> metacore.common.v1.QualityMask
+	15, // 11: metacore.module1.v1.SystemContext.envelope:type_name -> metacore.common.v1.Envelope
+	1,  // 12: metacore.module1.v1.SystemContext.severity:type_name -> metacore.module1.v1.HazardSeverity
+	15, // 13: metacore.module1.v1.VulnerabilityForecast.envelope:type_name -> metacore.common.v1.Envelope
+	11, // 14: metacore.module1.v1.VulnerabilityForecast.nodes:type_name -> metacore.module1.v1.NodeVulnerability
+	17, // 15: metacore.module1.v1.StateRequest.scenario:type_name -> metacore.common.v1.ScenarioRef
+	12, // 16: metacore.module1.v1.StateRepresentationService.GetTopology:input_type -> metacore.module1.v1.TopologyRequest
+	13, // 17: metacore.module1.v1.StateRepresentationService.StreamState:input_type -> metacore.module1.v1.StateRequest
+	13, // 18: metacore.module1.v1.StateRepresentationService.StreamSnapshot:input_type -> metacore.module1.v1.StateRequest
+	13, // 19: metacore.module1.v1.StateRepresentationService.StreamContext:input_type -> metacore.module1.v1.StateRequest
+	14, // 20: metacore.module1.v1.StateRepresentationService.Health:input_type -> metacore.module1.v1.HealthRequest
+	3,  // 21: metacore.module1.v1.StateRepresentationService.GetTopology:output_type -> metacore.module1.v1.GridTopology
+	2,  // 22: metacore.module1.v1.StateRepresentationService.StreamState:output_type -> metacore.module1.v1.StateRepresentation
+	7,  // 23: metacore.module1.v1.StateRepresentationService.StreamSnapshot:output_type -> metacore.module1.v1.GridStateSnapshot
+	9,  // 24: metacore.module1.v1.StateRepresentationService.StreamContext:output_type -> metacore.module1.v1.SystemContext
+	18, // 25: metacore.module1.v1.StateRepresentationService.Health:output_type -> metacore.common.v1.Health
+	21, // [21:26] is the sub-list for method output_type
+	16, // [16:21] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_module1_proto_init() }
@@ -1135,7 +1286,7 @@ func file_module1_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_module1_proto_rawDesc), len(file_module1_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   12,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

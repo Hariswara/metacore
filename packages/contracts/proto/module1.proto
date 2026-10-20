@@ -45,12 +45,34 @@ message StateRepresentation {
 // ---------------------------------------------------------------- M1 -> M4
 // The canonical network model. M1 and M4 must instantiate an identical physical state, so the
 // topology is owned in one place and versioned.
+//
+// DRAFT v1.0 (topology "northern-islands-v1"), pending joint M1/M4 sign-off. The concrete network
+// -- buses, lines, assets, the node map from M1's forecaster graph, and the provenance of every
+// value -- is pinned next to the generated stubs, with the OpenDSS model generated from the same
+// table:
+//
+//   packages/contracts/python/metacore_contracts/schema/module1_topology_v1.json
+//   packages/contracts/python/metacore_contracts/topology/northern_islands_v1.dss
+//   from metacore_contracts.topology_schema import DSS_PATH, TOPOLOGY_ID, node_map
+//
+// v1.0 adds `assets` (field 6) to GridTopology, `quality` to NodeState and
+// `assets_out_of_service` to GridStateSnapshot. All additive: v0 readers are unaffected.
 message GridTopology {
   metacore.common.v1.Envelope envelope = 1;
-  string topology_id = 2;      // e.g. "delft-3island-v1"
+  string topology_id = 2;      // e.g. "northern-islands-v1"
   string opendss_master_file = 3;
-  repeated Node nodes = 4;
-  repeated Edge edges = 5;
+  repeated Node nodes = 4;     // buses
+  repeated Edge edges = 5;     // lines
+  repeated Asset assets = 6;   // generating assets, each attached to a bus
+}
+
+message Asset {
+  string element = 1;          // OpenDSS element name, e.g. "ELU_HYB_BESS"
+  string bus = 2;              // Node.node_id it connects to
+  AssetType asset_type = 3;
+  double rating_kva = 4;
+  bool in_service = 5;
+  bool grid_forming = 6;       // the island's reference source (lead diesel genset)
 }
 
 message Node {
@@ -86,7 +108,8 @@ message GridStateSnapshot {
   metacore.common.v1.Envelope envelope = 1;
   string topology_id = 2;
   repeated NodeState node_states = 3;
-  double update_period_s = 4;
+  double update_period_s = 4;               // 3600 offline: the record is hourly at best
+  repeated string assets_out_of_service = 5; // Asset.element values M4 must disable
 }
 
 message NodeState {
@@ -95,6 +118,9 @@ message NodeState {
   double p_kw = 3;
   double q_kvar = 4;
   double soc_fraction = 5; // storage only
+  // Per field, in the order voltage_pu, p_kw, q_kvar, soc_fraction. A QUALITY_MISSING field's
+  // value is meaningless and must not be applied (proto3 cannot distinguish 0 from unset).
+  metacore.common.v1.QualityMask quality = 6;
 }
 
 // ---------------------------------------------------------------- M1 -> M3

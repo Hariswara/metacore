@@ -1,0 +1,141 @@
+{
+ "envelope": {
+  "schema_version": {
+   "major": 1,
+   "minor": 0
+  },
+  "emitted_at": "replay",
+  "producer": "module1",
+  "scenario": null,
+  "trace_id": "m1-snapshot-2025-11-28T19:00"
+ },
+ "topology_id": "northern-islands-v1",
+ "timestamp_lst": "2025-11-28T19:00",
+ "update_period_s": 3600,
+ "node_states": [
+  {
+   "node_id": "NAI_F1",
+   "voltage_pu": null,
+   "p_kw": 120.924,
+   "q_kvar": 74.942,
+   "soc_fraction": null,
+   "quality": {
+    "voltage_pu": "QUALITY_MISSING",
+    "p_kw": "QUALITY_INTERPOLATED",
+    "q_kvar": "QUALITY_INTERPOLATED",
+    "soc_fraction": "QUALITY_MISSING"
+   }
+  },
+  {
+   "node_id": "NAI_F2",
+   "voltage_pu": null,
+   "p_kw": 120.924,
+   "q_kvar": 74.942,
+   "soc_fraction": null,
+   "quality": {
+    "voltage_pu": "QUALITY_MISSING",
+    "p_kw": "QUALITY_INTERPOLATED",
+    "q_kvar": "QUALITY_INTERPOLATED",
+    "soc_fraction": "QUALITY_MISSING"
+   }
+  },
+  {
+   "node_id": "DEL_F1",
+   "voltage_pu": null,
+   "p_kw": 119.039,
+   "q_kvar": 73.774,
+   "soc_fraction": null,
+   "quality": {
+    "voltage_pu": "QUALITY_MISSING",
+    "p_kw": "QUALITY_INTERPOLATED",
+    "q_kvar": "QUALITY_INTERPOLATED",
+    "soc_fraction": "QUALITY_MISSING"
+   }
+  },
+  {
+   "node_id": "DEL_F2",
+   "voltage_pu": null,
+   "p_kw": 119.039,
+   "q_kvar": 73.774,
+   "soc_fraction": null,
+   "quality": {
+    "voltage_pu": "QUALITY_MISSING",
+    "p_kw": "QUALITY_INTERPOLATED",
+    "q_kvar": "QUALITY_INTERPOLATED",
+    "soc_fraction": "QUALITY_MISSING"
+   }
+  },
+  {
+   "node_id": "ANA_F1",
+   "voltage_pu": null,
+   "p_kw": 48.428,
+   "q_kvar": 30.013,
+   "soc_fraction": null,
+   "quality": {
+    "voltage_pu": "QUALITY_MISSING",
+    "p_kw": "QUALITY_INTERPOLATED",
+    "q_kvar": "QUALITY_INTERPOLATED",
+    "soc_fraction": "QUALITY_MISSING"
+   }
+  },
+  {
+   "node_id": "ANA_F2",
+   "voltage_pu": null,
+   "p_kw": 48.428,
+   "q_kvar": 30.013,
+   "soc_fraction": null,
+   "quality": {
+    "voltage_pu": "QUALITY_MISSING",
+    "p_kw": "QUALITY_INTERPOLATED",
+    "q_kvar": "QUALITY_INTERPOLATED",
+    "soc_fraction": "QUALITY_MISSING"
+   }
+  },
+  {
+   "node_id": "ELU_F1",
+   "voltage_pu": null,
+   "p_kw": 20.387,
+   "q_kvar": 12.635,
+   "soc_fraction": null,
+   "quality": {
+    "voltage_pu": "QUALITY_MISSING",
+    "p_kw": "QUALITY_INTERPOLATED",
+    "q_kvar": "QUALITY_INTERPOLATED",
+    "soc_fraction": "QUALITY_MISSING"
+   }
+  },
+  {
+   "node_id": "ELU_F2",
+   "voltage_pu": null,
+   "p_kw": 20.387,
+   "q_kvar": 12.635,
+   "soc_fraction": null,
+   "quality": {
+    "voltage_pu": "QUALITY_MISSING",
+    "p_kw": "QUALITY_INTERPOLATED",
+    "q_kvar": "QUALITY_INTERPOLATED",
+    "soc_fraction": "QUALITY_MISSING"
+   }
+  },
+  {
+   "node_id": "ELU_HYB",
+   "voltage_pu": null,
+   "p_kw": null,
+   "q_kvar": null,
+   "soc_fraction": null,
+   "quality": {
+    "voltage_pu": "QUALITY_MISSING",
+    "p_kw": "QUALITY_MISSING",
+    "q_kvar": "QUALITY_MISSING",
+    "soc_fraction": "QUALITY_MISSING"
+   }
+  }
+ ],
+ "assets_out_of_service": [
+  "ELU_HYB_BESS",
+  "ELU_HYB_PV",
+  "ELU_HYB_WIND"
+ ],
+ "hybrid_plant_down": true,
+ "data_source": "real"
+}

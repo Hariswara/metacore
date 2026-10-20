@@ -8,13 +8,22 @@ from pathlib import Path
 import opendssdirect as dss
 
 DEFAULT_MODEL_PATH = Path(__file__).parent / "models" / "delft_3island.dss"
+DEFAULT_TOPOLOGY_ID = "delft-3island-v0"
+
+_MISSING = "QUALITY_MISSING"
 
 
 class CircuitTwin:
     """Manages an OpenDSS microgrid simulation instance and state extraction."""
 
-    def __init__(self, dss_file_path: str | None = None) -> None:
+    def __init__(self, dss_file_path: str | None = None, topology_id: str | None = None) -> None:
         self.dss_file_path = Path(dss_file_path) if dss_file_path else DEFAULT_MODEL_PATH
+        # Which GridTopology this twin instantiates. A GridStateSnapshot for any other topology
+        # is refused rather than half-applied (see apply_snapshot).
+        self.topology_id = topology_id or (
+            DEFAULT_TOPOLOGY_ID if self.dss_file_path == DEFAULT_MODEL_PATH
+            else self.dss_file_path.stem
+        )
         self._initial_load_cache: dict[str, tuple[float, float]] = {}
         self._initial_gen_cache: dict[str, tuple[float, float]] = {}
         self.compile_base_circuit()
@@ -44,6 +53,58 @@ class CircuitTwin:
     def reset_to_base(self) -> None:
         """Restores circuit to nominal baseline state."""
         self.compile_base_circuit()
+
+    def apply_snapshot(self, snapshot: dict) -> list[str]:
+        """Loads an M1 GridStateSnapshot (module1.proto) onto the twin.
+
+        Sets feeder-bus demand from every node state whose p_kw is not QUALITY_MISSING, and
+        disables the assets the snapshot lists as out of service. Fields the snapshot marks
+        missing are left at the model's base value -- never zeroed. The applied state becomes
+        the new reference for load shedding, so a shed fraction is a fraction of *this hour's*
+        demand. Returns a list of problems; any problem means the snapshot was not applied
+        consistently and the caller must reject.
+        """
+        problems: list[str] = []
+        if snapshot.get("topology_id") != self.topology_id:
+            return [f"snapshot topology {snapshot.get('topology_id')!r} != twin "
+                    f"{self.topology_id!r}"]
+
+        loads_by_bus: dict[str, list[str]] = {}
+        for load_name in dss.Loads.AllNames():
+            dss.Circuit.SetActiveElement(f"Load.{load_name}")
+            bus = dss.CktElement.BusNames()[0].split(".")[0].lower()
+            loads_by_bus.setdefault(bus, []).append(load_name)
+
+        for ns in snapshot.get("node_states", []):
+            quality = ns.get("quality", {})
+            if ns.get("p_kw") is None or quality.get("p_kw") == _MISSING:
+                continue
+            names = loads_by_bus.get(str(ns["node_id"]).lower())
+            if not names:
+                problems.append(f"no load at bus {ns['node_id']!r}")
+                continue
+            p_total = float(ns["p_kw"])
+            q_total = float(ns["q_kvar"]) if ns.get("q_kvar") is not None else None
+            base = [self._initial_load_cache.get(n.lower(), (0.0, 0.0)) for n in names]
+            base_p = sum(p for p, _ in base)
+            for name, (p0, _q0) in zip(names, base, strict=True):
+                # Split across the bus's loads in proportion to their base demand.
+                w = (p0 / base_p) if base_p else 1.0 / len(names)
+                dss.Loads.Name(name)
+                dss.Loads.kW(p_total * w)
+                if q_total is not None:
+                    dss.Loads.kvar(q_total * w)
+
+        generators = {g.lower() for g in dss.Generators.AllNames()}
+        for element in snapshot.get("assets_out_of_service", []):
+            if element.lower() not in generators:
+                problems.append(f"no generator {element!r} to take out of service")
+                continue
+            dss.Circuit.SetActiveElement(f"Generator.{element}")
+            dss.CktElement.Enabled(False)
+
+        self._cache_base_equipment()
+        return problems
 
     def get_all_buses(self) -> list[str]:
         """Returns all bus names in the active circuit."""
