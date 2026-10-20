@@ -96,3 +96,47 @@ def ece(probs, labels, n_bins=10):
         if m.sum()>0:
             e += m.mean()*abs(acc[m].mean()-conf[m].mean())
     return float(e)
+
+
+def uncertainty_histogram(groups, n_bins=25, lo=0.0, hi=1.0):
+    """Shared-bin histogram of u per population, emitted as data not a plot.
+
+    One set of edges for every group so the bars are directly comparable -- the figure's
+    whole point is that the populations occupy different parts of [0, 1], which a
+    per-group binning would hide. Densities as well as counts, because the groups are
+    different sizes.
+    """
+    edges = np.linspace(lo, hi, n_bins + 1)
+    out = {"bin_lo": edges[:-1].tolist(), "bin_hi": edges[1:].tolist(), "groups": {}}
+    for name, values in groups.items():
+        v = np.asarray(values, dtype=float)
+        counts, _ = np.histogram(v, bins=edges)
+        out["groups"][name] = {
+            "counts": counts.tolist(),
+            "density": (counts / max(1, counts.sum())).tolist(),
+            "mean": float(v.mean()),
+            "n": int(v.size),
+        }
+    return out
+
+
+def quality_sweep(evidence_by_group, fractions, k):
+    """Mean quality-aware u' against the sensing fraction f, per population.
+
+    u' = K / (f·Σe + K) evaluated over a range of f on *fixed* evidence, so the curve
+    isolates the sensing axis: the feature values never change, only how much of them is
+    declared observed. A cyclone state has ~zero evidence, so its curve is flat at 1 at
+    every f -- which is the figure's point. The two axes are independent, and the sensing
+    axis can only move a state the model has evidence about.
+
+    `evidence_by_group` maps a name to that group's summed evidence per state (Σe), so
+    this stays NumPy and needs no model.
+    """
+    rows = []
+    for f in fractions:
+        row = {"observed_fraction": float(f)}
+        for name, total in evidence_by_group.items():
+            total = np.asarray(total, dtype=float)
+            row[name] = float(np.mean(k / (total * float(f) + k)))
+        rows.append(row)
+    return rows

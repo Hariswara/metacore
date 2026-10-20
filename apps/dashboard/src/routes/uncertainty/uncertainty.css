@@ -366,3 +366,55 @@
     padding: 28px 20px 48px;
   }
 }
+
+/* Shown only when /api/module2/run is unreachable and the page fell back to the
+   hand-fitted curves. Deliberately loud: the route's whole claim is that its numbers
+   come from the trained head, so a small badge is not enough to retract it. */
+.uncertainty__offline {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--amber);
+  border-left-width: 4px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--amber) 10%, transparent);
+  color: var(--text);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.uncertainty__offline strong {
+  color: var(--amber);
+}
+
+.uncertainty__offline code {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--amber) 16%, transparent);
+}
+
+/* Shown whenever the REAL head's numbers are on screen. Its 3-class label is discretised
+   from M1's constructed vulnerability proxy, not an observed safety class, and that fact
+   has to travel with the numbers rather than live only in the report. */
+.uncertainty__disclosure {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--violet, #a78bfa);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--violet, #a78bfa) 8%, transparent);
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+
+.uncertainty__disclosure strong {
+  color: var(--violet, #a78bfa);
+}
+
+/* The head badge sits beside the live/fallback one. Which head produced a number is not
+   decoration: the two are fitted on different distributions and are not comparable. */
+.uncertainty__badge--head {
+  letter-spacing: 0.02em;
+}

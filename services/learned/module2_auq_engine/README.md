@@ -76,7 +76,9 @@ Competence-drop trigger — two conditions, OR'd, with the reason it fired:
 | cyclone (value-OOD) | 1.000 | `value` 1.00 |
 | comms blackout (`observed_fraction` < 0.35) | 1.000 | `sensing` 0.95, `both` 0.05 |
 
-Magnitude along the quality axis — the same in-distribution states, less of them observed:
+Magnitude along the quality axis — the same in-distribution states, less of them
+observed. Printed by `run_demo.py` and written to `eval_tables.json` as
+`quality_sweep`, so these are regenerated rather than computed by hand:
 
 | `observed_fraction` | 1.00 | 0.75 | 0.50 | **0.4286** | 0.25 | 0.10 |
 |---|---|---|---|---|---|---|
@@ -98,6 +100,54 @@ range as an ordinary one, so blackouts survive the cut (their share even rises, 
 the cyclones ahead of them are removed). The explicit `observed_fraction` floor is what
 catches them: the two-condition trigger fires on 1.000 of cyclones **and** 1.000 of
 blackouts, at 0.050 on normal operation.
+
+## Bad input degrades, it does not raise
+
+A gate on a control loop must not throw. If M1 hands M2 a truncated vector, a NaN from a
+divide-by-zero upstream, or nothing at all, the honest reading is *"I cannot see this
+state"* — which is what `u' = 1` plus a fired trigger already means. Raising instead
+pushes the decision onto a caller with no uncertainty machinery of its own, and at worst
+drops the control step, the one outcome this module exists to prevent.
+
+`sanitize.py` does this without a special case, because an unusable feature **is an
+unobserved feature**. Its quality flag is rewritten to `QUALITY_MISSING`, `f` falls out of
+the mask exactly as it always does, and the existing arithmetic finishes the job:
+
+Measured through the real head (`backend=onnx`), one in-distribution state damaged
+different ways:
+
+| input | f | u' | trigger | reason |
+|---|---|---|---|---|
+| clean 28-wide vector | 0.4286 | 0.114 | no | `none` |
+| 3 of 28 features NaN | 0.4286 | **1.000** | **yes** | `both` |
+| all 28 NaN | 0.0000 | **1.000** | **yes** | `both` |
+| empty / `None` / a string | 0.0000 | **1.000** | **yes** | `both` |
+| 8-wide (the old mock width) | 0.2857 | **1.000** | **yes** | `both` |
+| 40-wide | 1.0000 | **1.000** | **yes** | `both` |
+
+All 28 unusable gives `f = 0`, hence `u' = K/K = 1` — below any sensible floor, so the
+sensing axis fires on the arithmetic alone.
+
+Two things the table makes honest that the mechanism alone would not:
+
+- **The reason is `both`, not `sensing`.** A damaged vector is zero-filled, and a
+  zero-filled row is *also* unlike anything in training, so the value axis fires too.
+  That is the correct reading — we can neither see the state nor recognise it — and it is
+  what M3 is handed. Only the `f`-driven part is the sensing axis.
+- **`f` alone is not the gate.** Three NaNs in a state whose mask already marked those
+  features non-observed leaves `f` untouched at 0.4286, and a 40-wide vector lands at
+  `f = 1.0`. Both still escalate, because callers force the trigger on `Sanitized.ok`.
+  Width in particular is a *contract* violation rather than a quality problem: it is
+  padded or truncated and flagged, never silently scored.
+
+**The M2→M3 message does not change.** Degradation arrives as `competence_drop` with
+`trigger_reason` `sensing` or `both` — values M3 already handles — so there is no schema
+bump and nothing new for the gate to learn.
+
+`validate_state` is the strict counterpart: the HTTP layer rejects a malformed request
+with a 422 rather than scoring it, because a caller bug should surface as a caller bug.
+Graceful degradation is for the runtime path, where there is no one to show an error to.
+`tests/test_edge_cases.py` covers 11 kinds of bad input across both.
 
 ## Baselines and the ablation (`python benchmark.py` → `comparison_table.json`)
 
@@ -140,6 +190,11 @@ viable and not.
 
 Every claim above is asserted as an *ordering* in `tests/test_baselines.py` at reduced
 scale (~5s) — exact values move with the seed, the ranking does not.
+
+`run_demo.py` prints this table too, via `benchmark.compare`, so the end-to-end demo
+shows what the alternatives do on the same data. Its numbers sit slightly off the ones
+above because the demo trains on the mixed-quality population and `benchmark.py` on
+clean states; the ordering is the claim.
 
 ## Serving: ONNX export and batch-1 latency (optional `onnx` extra)
 
@@ -195,6 +250,221 @@ merely absent. The model card is committed, and records the verification result.
 `infer.OnnxAUQ` is the path M3 calls: `load()` → `calibrate(id_features)` → `score(features,
 observed_fraction)` → an `M2Output`. It runs the same two axes as the torch path and needs
 no torch at serving time.
+
+## Behind the prototype UI (`POST /api/module2/run`)
+
+The dashboard's uncertainty page scores against this engine through the gateway, which
+shells out to `infer_one.py`. Two request forms, and the first is the real one:
+
+| form | body | `f` comes from |
+|---|---|---|
+| **contract** | `features` (28 floats) + `quality_mask` (28 `Quality` flags) | **derived** from the mask |
+| **synthetic** | `novelty` + `observed_fraction` | taken as given |
+
+`observed_fraction` is never an input on the contract form. The proto documents it as a
+convenience over `per_feature`, so accepting it as a number would let a caller claim a
+data quality its own mask does not support. The contract form is exactly the shape
+`/api/module1/assemble` emits, so **M1 → M2 composes directly**:
+
+```bash
+curl -s localhost:8000/api/module1/assemble -d '{"island":"eluvaitivu","scenario":"normal"}'   -H 'content-type: application/json'   | jq '{features: .node_features[0], quality_mask: .quality_mask}'   | curl -s localhost:8000/api/module2/run -H 'content-type: application/json' -d @-
+```
+
+Response: `u`, `u_q`, `evidence`, `observed_fraction`, `trigger`, `reason`, `latency_ms`,
+`baselines`, `backend`, `value_threshold`, `input_problems`. Sending both forms, or
+neither, is a 422. `services/gateway/tests/test_module2_router.py` covers the wiring.
+
+### Serving the real head instead
+
+`/module2/run` and the dashboard serve the **synthetic** head, which is what the rest of
+this README measures and what the PP1 fallback demo shows. The head trained on M1's real
+states is a separate artifact, loaded explicitly:
+
+```python
+auq = OnnxAUQ.load(model_path="edl_real.onnx", card_path="edl_real.onnx.json")
+```
+
+See **Retraining on M1's real states** below for what that head is and how it scores.
+
+## Retraining on M1's real states (`python train_real.py`)
+
+> **M2's uncertainty engine now runs on Module 1's real forecast states.** The head
+> trained on `synthetic_data` returned `u = 1.0` on every real M1 row; refitting the
+> normalisation card on the real distribution removes that at root, and the retrained
+> head returns `u` between **0.043 and 0.274** on a live `/forecast` payload.
+
+Full output in [`real_m1_metrics.json`](real_m1_metrics.json), which carries its own
+label and OOD disclosures inline so a table lifted out of it cannot lose them.
+
+### The root cause was the card, not the head
+
+The five electrical features are `QUALITY_MISSING` and exactly `0.0` on every offline M1
+row (no power-flow simulator, no SCADA — ADR 0004). The synthetic card was fitted on draws
+where `voltage_pu` ~ 1.0 ± 0.021, so a real row's `0.0` lands at:
+
+| feature | z on the synthetic card |
+|---|---|
+| `voltage_pu` | **−48.5 σ** |
+| `asset_online` | −8.0 σ |
+| `p_kw_norm` | −3.7 σ |
+| `q_kvar_norm` | −3.0 σ |
+| `soc_fraction` | −0.3 σ |
+| **RMS over the five** | **22 σ** |
+
+against an evidence regulariser trained to drive evidence to zero at **4 σ**. `u = 1.0`
+was the *correct* answer to a row that far outside the fitted distribution. M1 reached the
+same conclusion independently — `module1.train.dataset` drops those five from its own
+model inputs because "constant zeros carry no signal".
+
+### The label, and what it is not
+
+The 3-class label is discretised from M1's vulnerability proxy
+`V = w_H·E_type·H + w_F·F + w_S·S` (`module1.train.target`) at the **q0.70/q0.95 quantiles
+of the training split**, giving `V` cuts of 0.2494 / 0.3585.
+
+**V is a constructed proxy, not an observation** — M1's own words, carried as
+`QUALITY_INTERPOLATED`. No dataset records an observed microgrid safety class. Accuracy
+and ECE below therefore state *internal consistency with M1's proxy*, not the prediction
+of real asset failures. That sentence is `m1_real.PROXY_DISCLOSURE` and is written into
+every metrics artifact.
+
+| split | node-rows | safe | stressed | critical |
+|---|---|---|---|---|
+| train | 131,280 (32,820 used) | 0.700 | 0.250 | 0.050 |
+| test | 22,080 | 0.548 | 0.333 | **0.119** |
+
+`critical` more than doubles in the test split — which is the Eluvaitivu decay quarter —
+so the split tests a shift rather than a reshuffle. It is also sparse enough at 5% that
+the loss is **class-weighted** (inverse frequency, normalised to mean 1: 0.174 / 0.483 /
+2.343), or the head buys its accuracy by never predicting it.
+
+Four leakage guards: cuts from train only; M1 scales hazard on training quantiles only;
+M1 lags the fragility decay a month; and M1's own `vulnerability` history feature is
+dropped by construction, since the 28-feature contract has no such field.
+
+### Classification on real test states
+
+The label is the discretised proxy. No AUROC here — that needs an OOD label the hourly
+record does not carry (see below).
+
+| method | accuracy | macro-recall | ECE | AURC |
+|---|---|---|---|---|
+| Softmax max-prob | 0.826 | 0.723 | 0.147 | 0.115 |
+| MC-Dropout (T=20) | 0.852 | 0.758 | 0.079 | 0.073 |
+| **EDL (ours)** | **0.866** | **0.773** | **0.074** | 0.074 |
+
+### OOD detection — n = 1, and only where the episode is visible
+
+Eluvaitivu per-plant monthly ledger: 1 episode, 3 decay plant-months against held-out
+nominal.
+
+| method | AUROC | AUPR | FPR95 |
+|---|---|---|---|
+| Softmax max-prob | 0.567 | 0.146 | 0.700 |
+| MC-Dropout (T=20) | 0.822 | 0.189 | 0.367 |
+| **EDL (ours)** | **0.978** | **0.517** | **0.067** |
+
+**No OOD detection rate is claimed on hourly data.** `island_load_hourly.csv` sums both
+Eluvaitivu plants, attenuating the event **7.1×** (plant −73.4%, island demand −10.3%),
+and the same-season control AUROC there is **0.500**. This is `m1_real.OOD_DISCLOSURE`,
+and it is the reason the hourly table above reports no AUROC at all.
+
+### The two axes, on real states
+
+Value threshold calibrated on real training `u` at the same 5% false-alarm rate; sensing
+floor unchanged at 0.35. The mask is degraded, never the values — same rows, fewer of them
+declared observed.
+
+| population | f | fires | reasons |
+|---|---|---|---|
+| real states, nominal mask | 0.4286 | 0.078 | `none` 0.92, `value` 0.08 |
+| real states, temporal block lost | 0.2857 | **1.000** | `sensing` 0.92, `both` 0.08 |
+
+### Old vs new, on one live `/forecast` payload
+
+`python compare_real_vs_synthetic.py` — 2025-11-28T08:00, test split, all 10 nodes,
+scored through `infer.OnnxAUQ.score()` with each artifact in turn:
+
+| | synthetic `edl.onnx` | real `edl_real.onnx` |
+|---|---|---|
+| min `u` | 1.0000 | **0.0427** |
+| mean `u` | 1.0000 | **0.1288** |
+| max `u` | 1.0000 | **0.2740** |
+| nodes at `u` > 0.99 | **10 / 10** | **0 / 10** |
+
+The synthetic head fires on nothing, which looks reassuring and is not: its threshold
+calibrates to ~1.0 as well, because it saturates on the calibration states too. A head
+that returns 1.0 for everything is not cautious, it is uninformative.
+
+**What "does not saturate" means precisely.** The retrained head keeps a genuine
+high-uncertainty tail — roughly 6–10% of rows sit above `u` = 0.99 — and that tail is
+present in the **training** split too (5.5%), so it is the head declining to commit on
+hard states, not an artifact of the test period. Median `u` is 0.06–0.08 across all three
+splits. `u` also still varies *within* the real distribution: mean `u` on `critical` rows
+exceeds `safe` rows, so not-saturating did not come at the cost of going flat.
+
+### Serving it: `head=` on `/module2/run`
+
+Both heads are reachable, and which one answered is part of the answer:
+
+```bash
+# default -- the synthetic head, unchanged
+curl -s localhost:8000/api/module2/run -H 'content-type: application/json'   -d '{"features": [...28...], "quality_mask": [...28...]}'
+
+# opt in to the real head
+curl -s localhost:8000/api/module2/run -H 'content-type: application/json'   -d '{"features": [...], "quality_mask": [...], "head": "real"}'
+
+curl -s -X POST localhost:8000/api/module2/warm       # prime it, ~190 ms
+```
+
+| | `head=synthetic` (default) | `head=real` |
+|---|---|---|
+| artifact | `edl.onnx` | `edl_real.onnx` |
+| script | `infer_one.py` | `serve_real.py` |
+| cold / warm | 13.6 s / 3.1 s | **0.56 s** (no fixture, no calibration) |
+| `baselines` | present | `null` — fitted on synthetic data, so not comparable |
+| `label_disclosure` | absent | the constructed-proxy sentence |
+| novelty-slider form | yes | **422** — no interpretation for a manufactured state |
+
+`head` defaults to `synthetic`, so the fallback path is unchanged unless asked otherwise.
+The real head is a separate script rather than a branch inside `infer_one.py`, so no edit
+to it can change what the fallback returns. A missing `edl_real.onnx` is a **503** naming
+the command that builds it, never a 500 — it is derived and git-ignored, so its absence on
+a fresh clone is ordinary.
+
+### The demo trap worth knowing
+
+Uncertainty on real states concentrates sharply in the **evening peak**:
+
+| hours | share of all hours | share of rows with `u` > 0.99 | mean `u` |
+|---|---|---|---|
+| 18:00–20:00 | 12.5% | **62.0%** | 0.538 |
+| all others | 87.5% | 38.0% | 0.135 |
+
+18:00 alone has **51.9%** of its rows above `u` = 0.99, against 2.8% outside the peak —
+and `module1.assemble`'s **default timestamp is `2024-06-15T18:00`**. A demo left on
+defaults therefore shows `u` = 1.000 on the real head and looks identical to the
+saturation this work fixed. The dashboard labels that preset "u saturates here".
+
+This is the head declining to commit where the grid is most stressed and the `critical`
+class concentrates, which is defensible — but it is also the honest limitation: the engine
+is least confident exactly when a decision matters most.
+
+### Reproducing it
+
+```bash
+python train_real.py                  # ~135s -> real_m1_metrics.json + .real_cache/
+python export_onnx.py --real          # -> edl_real.onnx (verified vs torch at 0.00e+00)
+python compare_real_vs_synthetic.py   # the old-vs-new table above
+```
+
+Trained on every 4th hour, keeping all 10 nodes of the hours kept (hourly grid states are
+strongly autocorrelated, so a stride loses little and covers the diurnal cycle evenly):
+131,280 → 32,820 rows, 120 epochs, seeded.
+
+**The synthetic path is untouched.** `run_demo.py`, `edl.onnx`, `infer_one.py` and the
+dashboard all still serve the mock demo, which stays the guaranteed fallback —
+`edl_real.onnx` is written alongside `edl.onnx`, never over it.
 
 ## Real data: the Eluvaitivu degradation (`python eluvaitivu_decay.py`)
 
@@ -284,14 +554,40 @@ continues through it — and nothing in the record resolves it.
 ## Figures (optional `viz` extra)
 
 Metrics are computed in NumPy and emitted as **data** — `run_demo.py` writes
-`eval_tables.json` (reliability bins, risk-coverage points, retained composition). Nothing
-in the test lane imports a plotting stack.
+`eval_tables.json` (reliability bins, risk-coverage points, retained composition,
+uncertainty histogram, quality sweep, calibrated thresholds). `plots.py` only draws what
+is already there, so nothing in the test lane imports a plotting stack.
+
+Four figures, one per claim the module makes, written to `figures/`:
+
+| figure | the claim it carries |
+|---|---|
+| `uncertainty_histogram.png` | the populations occupy different parts of [0, 1] — OOD detection |
+| `reliability.png` | the probabilities are honest — calibration |
+| `risk_coverage.png` | `u` ranks errors, so abstention works — selective prediction |
+| `u_prime_vs_f.png` | the sensing axis moves `u'` independently — the two-axis design |
+
+`u_prime_vs_f.png` is the two-axis argument as a picture: `u'` is swept over `f` on
+**fixed** evidence, so only the sensing axis moves. The cyclone curve comes out flat at
+1.000 — with no evidence to discount, `f` has nothing to act on — while *normal* and
+*blackout* lie on top of each other, because a blackout corrupts the mask and not the
+values. The sensing floor and M1's nominal `f` are drawn on it.
 
 ```bash
-uv sync --package metacore-module2 --extra viz   # or: pip install 'matplotlib>=3.7'
-python run_demo.py                               # writes eval_tables.json
-python plots.py                                  # writes reliability.png, risk_coverage.png
+uv sync --all-packages --all-extras                # see the warning below
+python run_demo.py                                 # writes eval_tables.json
+python plots.py                                    # writes figures/*.png
 ```
+
+> **Do not run `uv sync --package metacore-module2 --extra viz` in this workspace.**
+> `--package` syncs *only* that package and prunes everything else from the shared
+> `.venv` — it will uninstall the gateway's, M1's, M3's and M4's dependencies along with
+> pytest. Use `uv sync --all-packages --all-extras`, or `pip install 'matplotlib>=3.7'`
+> into the existing venv if you only want the plots.
+
+Figures are **not committed**: `*.png` and `figures/` are gitignored here by design, and
+the tables they draw from are. Every figure is reproducible with `python run_demo.py &&
+python plots.py`.
 
 ## Run
 ```bash
@@ -304,17 +600,22 @@ python run_demo.py
 - `synthetic_data.py` — **mock M1 state generator** (ID normal + OOD cyclone + comms blackout), emitting `StateRepresentation` over the real 28 pinned features. Replace with the real M1→M2 adapter when it lands.
 - `edl.py` — EDL head, `u = K/S`, quality-aware `u`, Dirichlet KL, EDL loss, OOD-aware evidence regulariser.
 - `trigger.py` — two-condition competence-drop trigger (value threshold OR sensing floor, hysteresis, reason).
+- `sanitize.py` — makes any input scoreable and says what was wrong with it, so the runtime path degrades to maximum uncertainty instead of raising. `validate_state` is the strict counterpart for the HTTP layer.
 - `evaluate.py` — AUROC / AUPR / FPR95 / ECE plus risk-coverage / AURC, reliability and retained-composition **tables** (NumPy, no plotting).
-- `plots.py` — renders those tables (reliability diagram, risk-coverage curve). Needs the `viz` extra; imported by nothing else.
+- `plots.py` — renders those tables into `figures/` (uncertainty histogram, reliability diagram, risk-coverage curve, `u'`-vs-`f`). Needs the `viz` extra; imported by nothing else.
 - `baselines.py` — softmax max-prob, MC-Dropout, and the EDL / EDL-without-OOD-reg pair, on one architecture.
 - `benchmark.py` + `comparison_table.json` — full-scale comparison **script** (not run in CI) and the table it writes.
 - `real_data.py` — real Eluvaitivu states from M1's committed artifacts (hourly load + NASA weather), and the per-plant monthly ledger.
 - `eluvaitivu_decay.py` + `results/eluvaitivu_decay.json` — the real-data evaluation **script** and its output.
 - `export_onnx.py` + `edl.onnx` + `edl.onnx.json` — ONNX export **script**, the batch-1 artifact, and its model card (architecture, opset, normalisation statistics).
-- `infer.py` — the serving path M3 calls: ONNX evidence + uncertainty + trigger, no torch at inference.
+- `infer.py` — the serving path M3 calls: ONNX evidence + uncertainty + trigger, no torch at inference. `score_state` is the resilient entry point (derives `f` from the mask, never raises).
 - `bench_latency.py` + `latency_table.json` — batch-1 p50/p99 **script** for torch-eager vs ONNX Runtime.
 - `contract.py` + `M2_TO_M3_CONTRACT.md` — **M2→M3 message + mock stream for Saabir**.
-- `run_demo.py` — end-to-end prototype; writes `sample_m2_to_m3.jsonl` and `eval_tables.json`.
+- `m1_real.py` — **real M1 states** on the 28-feature contract, with the 3-class label discretised from M1's vulnerability proxy V. Carries `PROXY_DISCLOSURE` / `OOD_DISCLOSURE` as module constants so the caveats travel with the numbers.
+- `train_real.py` + `real_m1_metrics.json` — refits the normalisation card on the real distribution, retrains the head class-weighted, and runs the full validation.
+- `compare_real_vs_synthetic.py` — scores one live `/forecast` payload through both artifacts; the acceptance check for the retrain.
+- `edl_real.onnx` + `edl_real.onnx.json` — the real-distribution artifact and its card, written alongside `edl.onnx` so the mock demo keeps serving the head it was measured with.
+- `run_demo.py` — end-to-end prototype (~59s): trains the head, prints the OOD metrics, the baseline comparison, the trigger breakdown, the selective-prediction curve and the sensing sweep; writes `sample_m2_to_m3.jsonl` and `eval_tables.json`.
 - `config.yaml` — K, features, training and trigger settings (retune without code changes).
 
 ## Four things worth understanding

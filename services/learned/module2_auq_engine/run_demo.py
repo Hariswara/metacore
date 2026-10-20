@@ -15,6 +15,7 @@ import random
 import numpy as np
 import torch
 import yaml
+from benchmark import compare, format_table
 from contract import build_output
 from edl import EDLNet, edl_mse_loss, kl_to_uniform, uncertainty, uncertainty_quality
 from evaluate import (
@@ -22,9 +23,11 @@ from evaluate import (
     auroc,
     ece,
     fpr95,
+    quality_sweep,
     reliability_table,
     retained_composition,
     risk_coverage,
+    uncertainty_histogram,
 )
 from state_contract import stack_features
 from synthetic_data import (
@@ -177,17 +180,61 @@ fired_mixed = np.array(
 for g in ("normal", "cyclone", "blackout"):
     print(f"     trigger fires on {g:<9}: {fired_mixed[groups == g].mean():.3f}")
 
+# --- how the alternatives do on the same data ---
+# benchmark.compare trains the four methods; this reuses the demo's own normalised
+# arrays so the table describes exactly the data printed above. Latency is skipped here
+# -- that column is throughput, and bench_latency.py is the honest batch-1 number.
+# benchmark.py remains the full-scale run that writes comparison_table.json.
+print()
+print("Same data, four uncertainty mechanisms (EDL vs the standard baselines):")
+print(format_table(compare(Xtr_, ytr, Xte_, yte, Xood_, tr["epochs"],
+                           seed=cfg["seed"], ood_reg=tr["ood_reg_weight"],
+                           time_it=False)))
+print("  -> the baselines do not merely underperform, they INVERT (AUROC < 0.5): a ReLU")
+print("     net is more confident far from its training data. The ablation row shows the")
+print("     OOD regulariser, not the Dirichlet head, is what fixes it.")
+print("     (These move a little against comparison_table.json: the demo trains on the")
+print("      mixed-quality population, benchmark.py on clean states. Ordering is the claim.)")
+
+# --- the sensing axis, swept: u' against f on fixed evidence ---
+# Sum(e) per state, so quality_sweep needs no model. The value axis is held still by
+# construction -- only f moves -- which is what makes the two axes visibly independent.
+sweep = quality_sweep(
+    {"normal": ev_id.sum(1).numpy(),
+     "cyclone": ev_ood.sum(1).numpy(),
+     "blackout": ev_bo.sum(1).numpy()},
+    sorted({1.0, 0.9, 0.75, 0.6, 0.5, float(of_te[0]), 0.35, 0.25, 0.1, 0.05}, reverse=True),
+    K,
+)
+print()
+print("Sensing axis on fixed evidence (same values, less of them observed):")
+print(f"  {'f':>6}   {'normal':>8} {'cyclone':>8} {'blackout':>9}")
+for row in sweep:
+    mark = "  <- nominal" if abs(row["observed_fraction"] - of_te[0]) < 1e-6 else ""
+    print(f"  {row['observed_fraction']:>6.3f}   {row['normal']:>8.3f} "
+          f"{row['cyclone']:>8.3f} {row['blackout']:>9.3f}{mark}")
+print("  -> the cyclone curve is flat at 1.000: with no evidence to discount, the")
+print("     sensing axis has nothing to move. The axes are independent.")
+
 # --- emit the evaluation tables as data; plots.py renders them (viz extra) ---
 reliability = reliability_table(p_id, yte)
+histogram = uncertainty_histogram({"normal": u_id, "cyclone": u_ood,
+                                  "blackout": u_bo})
 with open("eval_tables.json", "w") as f:
     json.dump({
         "reliability": reliability,
         "ece": float(ece(p_id, yte)),
         "risk_coverage": {"coverage": covs.tolist(), "risk": risks.tolist(), "aurc": aurc},
         "retained_composition": composition,
+        "uncertainty_histogram": histogram,
+        "quality_sweep": sweep,
+        "trigger": {"value_threshold": float(trig.vthr),
+                    "observed_fraction_floor": float(trig.of_floor),
+                    "nominal_observed_fraction": float(of_te[0])},
     }, f, indent=2)
 print(f"\n(eval_tables.json written: {len(reliability)} reliability bins, "
-      f"{len(covs)} coverage points -- render with `python plots.py`)")
+      f"{len(covs)} coverage points, {len(histogram['bin_lo'])} histogram bins, "
+      f"{len(sweep)} sweep points -- render with `python plots.py`)")
 
 # --- emit a few M2->M3 messages (the mock stream Saabir consumes now) ---
 print("\nSample M2 -> M3 contract messages (normal + cyclone + blackout):")

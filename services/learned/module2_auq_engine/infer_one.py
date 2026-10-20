@@ -1,5 +1,9 @@
-"""One-shot M2 scoring for the dashboard: two knobs in, one JSON object out.
+"""One-shot M2 scoring, in two forms: a real state vector, or two synthetic knobs.
 
+    # contract path -- one real M1 state, sensing fraction derived from its QualityMask
+    python infer_one.py --state-json '{"features": [...28...], "quality_mask": [...28...]}'
+
+    # synthetic path -- the dashboard's novelty slider
     python infer_one.py --novelty 0.85 --observed-fraction 0.30
 
 This is the real engine, not a simulation. It reuses the module's own functions rather
@@ -13,10 +17,12 @@ than reimplementing the maths:
   trigger.CompetenceDropTrigger                         the two-condition trigger + reason
   baselines.score_softmax / score_mc_dropout            the comparison baselines
 
-`novelty` interpolates the query state from an in-distribution exemplar toward an
-out-of-distribution (cyclone) one, so the slider sweeps a real path through feature space
-instead of a synthetic curve. `observed_fraction` is passed straight through as M1's
-QualityMask ratio would be.
+On the contract path the sensing fraction f is **derived** from the QualityMask rather
+than accepted as a number, so a caller cannot claim a data quality its own mask does not
+support. On the synthetic path `novelty` interpolates the query state from an
+in-distribution exemplar toward an out-of-distribution (cyclone) one, so the slider sweeps
+a real path through feature space instead of a synthetic curve, and `observed_fraction` is
+taken as given because there is no mask behind a manufactured state.
 
 Everything is seeded from config.yaml, so the same two inputs always produce the same
 JSON. The fixture (normalisation, baseline models, calibrated value threshold) is trained
@@ -27,6 +33,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import sys
 import time
 from pathlib import Path
 
@@ -43,9 +50,10 @@ from baselines import (
 )
 from edl import uncertainty as edl_uncertainty
 from edl import uncertainty_quality
+from sanitize import sanitize_state
 from state_contract import stack_features
 from synthetic_data import Normalizer, sample_states_id, sample_states_ood
-from trigger import CompetenceDropTrigger
+from trigger import REASON_BOTH, REASON_SENSING, REASON_VALUE, CompetenceDropTrigger
 
 HERE = Path(__file__).parent
 CACHE_DIR = HERE / ".dashboard_cache"
@@ -254,22 +262,24 @@ def _calibrate_threshold(engine, fixture: dict, false_alarm_rate: float, of_floo
     ).vthr
 
 
-def score(novelty: float, observed_fraction: float) -> dict:
-    cfg = _load_config()
-    _seed_everything(int(cfg["seed"]))
-
+def _engine_and_threshold(cfg: dict):
+    """Fixture, engine, sensing floor and calibrated value threshold -- the shared setup
+    both entry points need before they can score anything."""
     fixture = _build_fixture(cfg)
     engine = _make_engine(cfg, fixture)
-
     of_floor = float(cfg["trigger"]["observed_fraction_floor"])
     value_threshold = _calibrate_threshold(
         engine, fixture, float(cfg["trigger"]["value_false_alarm_rate"]), of_floor
     )
+    return fixture, engine, of_floor, value_threshold
 
-    n = float(np.clip(novelty, 0.0, 1.0))
-    f = float(np.clip(observed_fraction, 0.0, 1.0))
-    query_raw = _query_state(fixture, n)
 
+def _score_raw(cfg, fixture, engine, query_raw, f, of_floor, value_threshold) -> dict:
+    """Score one raw (un-normalised) 28-feature vector at sensing fraction `f`.
+
+    The single path both entry points funnel into, so the synthetic slider and a real M1
+    state cannot diverge in how u, u' or the trigger are computed.
+    """
     evidence = engine.evidence(query_raw)
     evidence_t = torch.as_tensor(evidence)
 
@@ -316,13 +326,81 @@ def score(novelty: float, observed_fraction: float) -> dict:
     }
 
 
+def score(novelty: float, observed_fraction: float) -> dict:
+    """The synthetic path: interpolate a query state from the novelty knob.
+
+    `observed_fraction` is taken as given here because there is no mask to derive it from
+    -- the state is manufactured. For a real M1 state use `score_state`, which derives the
+    sensing fraction from the QualityMask instead.
+    """
+    cfg = _load_config()
+    _seed_everything(int(cfg["seed"]))
+    fixture, engine, of_floor, value_threshold = _engine_and_threshold(cfg)
+
+    n = float(np.clip(novelty, 0.0, 1.0))
+    f = float(np.clip(observed_fraction, 0.0, 1.0))
+    query_raw = _query_state(fixture, n)
+    result = _score_raw(cfg, fixture, engine, query_raw, f, of_floor, value_threshold)
+    result["input_problems"] = []      # a manufactured state is clean by construction
+    return result
+
+
+def score_state(features, quality_mask=None) -> dict:
+    """The contract path: one real M1 state vector in, one scored M2 reading out.
+
+    `features` is the pinned 28-feature `node_features` row and `quality_mask` the matching
+    per-feature `Quality` flags. The sensing fraction is **derived** from the mask via
+    `QualityMask.from_per_feature`, not accepted as a number -- the contract documents
+    `observed_fraction` as a convenience over `per_feature`, so taking it as an input would
+    let a caller claim a quality the mask does not support.
+
+    This is the shape `/api/module1/assemble` already emits, so M1 -> M2 composes directly.
+
+    Never raises on bad input. `sanitize_state` repairs what it can, demoting unusable
+    features to QUALITY_MISSING so they lower f, and anything it had to repair forces the
+    trigger -- a state we cannot read is a state we cannot trust. `input_problems` says
+    what was wrong, so the page can show why it degraded rather than just that it did.
+    """
+    cfg = _load_config()
+    _seed_everything(int(cfg["seed"]))
+
+    clean = sanitize_state(features, quality_mask)
+    fixture, engine, of_floor, value_threshold = _engine_and_threshold(cfg)
+    result = _score_raw(cfg, fixture, engine, clean.features,
+                        clean.observed_fraction, of_floor, value_threshold)
+
+    result["input_problems"] = list(clean.problems)
+    if not clean.ok:
+        result["trigger"] = True
+        result["u_q"] = 1.0
+        result["baselines"]["edl"] = 1.0
+        result["reason"] = (
+            REASON_BOTH if result["reason"] in (REASON_VALUE, REASON_BOTH) else REASON_SENSING
+        )
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="One-shot M2 uncertainty scoring.")
-    parser.add_argument("--novelty", type=float, required=True, help="0..1 distribution shift")
+    parser.add_argument("--novelty", type=float, help="0..1 distribution shift (synthetic path)")
     parser.add_argument(
-        "--observed-fraction", type=float, required=True, help="0..1 share of features measured"
+        "--observed-fraction", type=float, help="0..1 share of features measured (synthetic path)"
+    )
+    parser.add_argument(
+        "--state-json",
+        help='contract path: {"features": [28 floats], "quality_mask": [28 Quality names]}. '
+        "Use - to read the object from stdin.",
     )
     args = parser.parse_args()
+
+    if args.state_json:
+        raw = sys.stdin.read() if args.state_json == "-" else args.state_json
+        payload = json.loads(raw)
+        print(json.dumps(score_state(payload["features"], payload["quality_mask"])))
+        return 0
+
+    if args.novelty is None or args.observed_fraction is None:
+        parser.error("pass --state-json, or both --novelty and --observed-fraction")
     print(json.dumps(score(args.novelty, args.observed_fraction)))
     return 0
 

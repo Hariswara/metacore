@@ -9,16 +9,33 @@
  * number renders in IBM Plex Mono, charts are div track/fill rather than a chart library.
  */
 import { useEffect, useState } from "react";
-import { runModule2 } from "../../lib";
+import {
+  assembleModule1,
+  runModule2,
+  runModule2State,
+  warmModule2Real,
+  type Module2Head,
+} from "../../lib";
 import "./uncertainty.css";
 
-/** Dirichlet classes — matches M2's K=3 safety classes plus the null hypothesis. */
-const K = 4;
+/**
+ * K is the EDL head's class count: M2's three safety classes (safe/stressed/critical).
+ * The Dirichlet vacuity is u = K/S with S = K + Sigma e, so there is no extra "null"
+ * class — the null hypothesis is what u itself measures.
+ */
+const K = 3;
 /** Evidence the EDL head emits on a fully in-distribution, fully observed reading. */
 const E0 = 60;
 
-const VALUE_TRIGGER_U = 0.5;
-const SENSING_TRIGGER_F = 0.45;
+/**
+ * Both thresholds are the engine's, not invented for this page:
+ * `observed_fraction_floor` is module2/config.yaml, and the value threshold is the
+ * 95th percentile of in-distribution u the trigger calibrates to (run_demo.py prints
+ * it as "value threshold"). The live path overrides both with the engine's own
+ * `value_threshold`; these only matter when the gateway is unreachable.
+ */
+const VALUE_TRIGGER_U = 0.147;
+const SENSING_TRIGGER_F = 0.35;
 /** baselines.MC_PASSES — the forward passes MC-Dropout pays per score. */
 const MC_PASSES = 20;
 
@@ -44,6 +61,20 @@ interface UncertaintyResult {
   latencyLabel: string;
   /** Where the numbers came from — additive, so the render path is unchanged. */
   source?: "live" | "fallback";
+  /**
+   * Which trained head produced these numbers. The two are fitted on different
+   * distributions against different targets, so a synthetic u of 0.05 and a real u of
+   * 0.05 do not mean the same thing — the page must never let them be confused.
+   */
+  head?: Module2Head;
+  /** "edl.onnx" or "edl_real.onnx". */
+  artifact?: string;
+  /** Real head only: its label is a constructed proxy, not an observed safety class. */
+  disclosure?: string | null;
+  /** Real head only: which M1 hour was scored (the state has no sliders). */
+  stateLabel?: string;
+  /** null on the real head — those baselines are fitted on synthetic data. */
+  hasBaselines?: boolean;
   /** "onnx" or "torch" when live; absent on the fallback. */
   backend?: string;
 }
@@ -51,9 +82,13 @@ interface UncertaintyResult {
 /**
  * Offline stand-in for the engine, used only when the gateway is unreachable.
  *
- * These are hand-fitted curves, NOT the trained model — the shape is right and the
- * numbers are not. The live path (computeUncertainty) is the real EDL head; this exists
- * so the page still renders something honest-looking when the API is down.
+ * These are hand-fitted curves, NOT the trained model. K and both thresholds now match
+ * the engine's, so the SHAPE of the argument survives — u rising with novelty, u'
+ * rising as f falls, the two axes firing separately — but no individual number here is
+ * a measurement, and none should be read out or screenshotted as one.
+ *
+ * The page says so in a banner rather than a badge, because the whole claim of this
+ * route is that the numbers come from the real head.
  */
 function simulateUncertainty(state: UncertaintyState): UncertaintyResult {
   const n = state.novelty;
@@ -85,6 +120,9 @@ function simulateUncertainty(state: UncertaintyState): UncertaintyResult {
     edlU: uq,
     latencyLabel: "0.03 ms",
     source: "fallback",
+    head: "synthetic",
+    artifact: "edl.onnx",
+    hasBaselines: true,
   };
 }
 
@@ -106,17 +144,62 @@ async function computeUncertainty(state: UncertaintyState): Promise<UncertaintyR
       observedFraction: live.observed_fraction,
       triggered: live.trigger,
       reason: live.reason,
-      softmaxU: live.baselines.softmax,
-      mcU: live.baselines.mc_dropout,
-      edlU: live.baselines.edl,
+      softmaxU: live.baselines?.softmax ?? 0,
+      mcU: live.baselines?.mc_dropout ?? 0,
+      edlU: live.baselines?.edl ?? live.u_q,
       latencyLabel: `${live.latency_ms.toFixed(3)} ms`,
       source: "live",
       backend: live.backend,
+      head: live.head,
+      artifact: live.artifact,
+      hasBaselines: live.baselines != null,
     };
   } catch {
     return simulateUncertainty(state);
   }
 }
+
+/**
+ * Scores one REAL Module 1 state against the head trained on M1's real distribution.
+ *
+ * The sliders do not apply here: this head is fitted on real states, so there is nothing
+ * to interpolate. It fetches an actual M1 hour from /api/module1/assemble and scores that.
+ *
+ * The hour matters and is shown. M2's uncertainty on real states is concentrated in the
+ * evening peak — 18:00-20:00 is 12.5% of hours but 62% of all rows above u = 0.99 — so
+ * the hour being scored is part of reading the number, not a detail.
+ */
+async function computeReal(timestamp: string): Promise<UncertaintyResult> {
+  const state = await assembleModule1("eluvaitivu", "normal", timestamp);
+  const live = await runModule2State(state.node_features[0], state.quality_mask, "real");
+  return {
+    u: live.u,
+    uq: live.u_q,
+    totalEvidence: live.evidence,
+    observedFraction: live.observed_fraction,
+    triggered: live.trigger,
+    reason: live.reason,
+    softmaxU: 0,
+    mcU: 0,
+    edlU: live.u_q,
+    latencyLabel: `${live.latency_ms.toFixed(3)} ms`,
+    source: "live",
+    backend: live.backend,
+    head: live.head,
+    artifact: live.artifact,
+    disclosure: live.label_disclosure,
+    stateLabel: `${state.island_name} / ${state.timestamp_lst}`,
+    hasBaselines: live.baselines != null,
+  };
+}
+
+/** Real M1 hours worth showing, chosen to make the diurnal effect visible rather than hide it. */
+const REAL_HOURS: Array<{ id: string; label: string; timestamp: string; note: string }> = [
+  { id: "offpeak", label: "Off-peak 03:00", timestamp: "2025-01-20T03:00", note: "quiet hours" },
+  { id: "midday", label: "Midday 12:00", timestamp: "2024-06-15T12:00", note: "typical daytime" },
+  { id: "decay", label: "Decay quarter 08:00", timestamp: "2025-11-28T08:00", note: "test split" },
+  { id: "peak", label: "Evening peak 18:00", timestamp: "2024-06-15T18:00", note: "u saturates here" },
+];
 
 interface Scenario {
   id: string;
@@ -249,6 +332,9 @@ function BaselineBars({ rows }: { rows: BaselineRow[] }) {
 export default function UncertaintyRoute() {
   const [novelty, setNovelty] = useState(SCENARIOS[0].novelty);
   const [observedFraction, setObservedFraction] = useState(SCENARIOS[0].observedFraction);
+  const [head, setHead] = useState<Module2Head>("synthetic");
+  const [realHour, setRealHour] = useState(REAL_HOURS[1].timestamp);
+  const [headError, setHeadError] = useState<string | null>(null);
 
   // Render the offline curves immediately, then replace them with the engine's answer.
   const [result, setResult] = useState<UncertaintyResult>(() =>
@@ -256,12 +342,27 @@ export default function UncertaintyRoute() {
   );
   const [pending, setPending] = useState(false);
 
+  // Prime the real head once, so the first toggle in a live demo is not the call that
+  // pays. It costs ~190 ms and failing is harmless — the toggle reports its own errors.
+  useEffect(() => {
+    warmModule2Real().catch(() => undefined);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     setPending(true);
-    computeUncertainty({ novelty, observedFraction })
+    setHeadError(null);
+    const work =
+      head === "real" ? computeReal(realHour) : computeUncertainty({ novelty, observedFraction });
+    work
       .then((next) => {
         if (!cancelled) setResult(next);
+      })
+      .catch((err: unknown) => {
+        // Only the real head can fail this way: edl_real.onnx is derived and git-ignored,
+        // so the gateway answers 503 with the command that builds it. Say so rather than
+        // silently showing the other head's numbers under a "real" label.
+        if (!cancelled) setHeadError(err instanceof Error ? err.message : String(err));
       })
       .finally(() => {
         if (!cancelled) setPending(false);
@@ -269,7 +370,7 @@ export default function UncertaintyRoute() {
     return () => {
       cancelled = true;
     };
-  }, [novelty, observedFraction]);
+  }, [novelty, observedFraction, head, realHour]);
 
   const activeScenario = SCENARIOS.find(
     (s) => Math.abs(s.novelty - novelty) < 1e-9 && Math.abs(s.observedFraction - observedFraction) < 1e-9,
@@ -304,6 +405,21 @@ export default function UncertaintyRoute() {
                 Module 2 — Agentic Epistemic Uncertainty Engine
                 <span className="uncertainty__badge">m2-out/0.3</span>
                 <span
+                  className="uncertainty__badge uncertainty__badge--head"
+                  style={
+                    result.head === "real"
+                      ? { color: "var(--violet, #a78bfa)", borderColor: "var(--violet, #a78bfa)" }
+                      : { color: "var(--text-muted)", borderColor: "var(--border)" }
+                  }
+                  title={
+                    result.head === "real"
+                      ? "Trained on Module 1's REAL state distribution (edl_real.onnx). Not comparable with the synthetic head."
+                      : "Trained on synthetic draws (edl.onnx) — the controlled demo head."
+                  }
+                >
+                  {result.head === "real" ? "head: REAL M1" : "head: synthetic"}
+                </span>
+                <span
                   className="uncertainty__badge"
                   style={
                     result.source === "live"
@@ -330,6 +446,83 @@ export default function UncertaintyRoute() {
             </div>
           </div>
         </header>
+
+        {result.source === "fallback" && (
+          <div className="uncertainty__offline" role="alert">
+            <strong>Not the engine.</strong> The gateway is unreachable, so these are
+            illustrative curves with the engine&rsquo;s thresholds — the shape is right,
+            the numbers are not measurements. Start it with{" "}
+            <code>uv run uvicorn gateway.main:app</code> from the repo root to score
+            against the trained EDL head.
+          </div>
+        )}
+
+        <section className="uncertainty__card uncertainty__controls">
+          <div className="uncertainty__card-title">0. Choose the head</div>
+          <div className="uncertainty__card-sub">
+            Two heads, fitted on different data against different targets. Their numbers are
+            <strong> not comparable</strong> — the badge above always says which one you are reading.
+          </div>
+          <div className="uncertainty__scenarios">
+            <button
+              type="button"
+              className={head === "synthetic" ? "uncertainty__btn" : "uncertainty__btn uncertainty__btn--ghost"}
+              onClick={() => setHead("synthetic")}
+            >
+              Synthetic (edl.onnx)
+            </button>
+            <button
+              type="button"
+              className={head === "real" ? "uncertainty__btn" : "uncertainty__btn uncertainty__btn--ghost"}
+              onClick={() => setHead("real")}
+            >
+              Real M1 (edl_real.onnx)
+            </button>
+          </div>
+
+          {head === "real" && (
+            <>
+              <div className="uncertainty__card-sub">
+                The sliders do not apply: this head is fitted on real states, so there is nothing
+                to interpolate. Pick a real Module 1 hour instead.
+              </div>
+              <div className="uncertainty__scenarios">
+                {REAL_HOURS.map((h) => (
+                  <button
+                    key={h.id}
+                    type="button"
+                    className={
+                      realHour === h.timestamp
+                        ? "uncertainty__btn"
+                        : "uncertainty__btn uncertainty__btn--ghost"
+                    }
+                    onClick={() => setRealHour(h.timestamp)}
+                    title={h.note}
+                  >
+                    {h.label}
+                  </button>
+                ))}
+              </div>
+              <div className="uncertainty__card-sub">
+                Uncertainty on real states concentrates in the evening peak — 18:00–20:00 is 12.5%
+                of hours but <strong>62% of all rows above u = 0.99</strong>. The hour is part of
+                reading the number.
+              </div>
+            </>
+          )}
+        </section>
+
+        {headError && (
+          <div className="uncertainty__offline" role="alert">
+            <strong>Real head unavailable.</strong> {headError}
+          </div>
+        )}
+
+        {result.head === "real" && result.disclosure && (
+          <div className="uncertainty__disclosure" role="note">
+            <strong>Constructed label.</strong> {result.disclosure}
+          </div>
+        )}
 
         <section className="uncertainty__card uncertainty__controls">
           <div className="uncertainty__card-title">1. Choose a situation</div>
@@ -435,6 +628,19 @@ export default function UncertaintyRoute() {
           <PipelineStrip reason={result.reason} />
         </section>
 
+        {result.hasBaselines === false ? (
+          <section className="uncertainty__card">
+            <div className="uncertainty__card-title">Baselines at this operating point</div>
+            <div className="uncertainty__card-sub">
+              Not shown for the real head, and deliberately not faked. The softmax and
+              MC-Dropout baselines on this page are fitted on the{" "}
+              <em>synthetic</em> distribution, so putting them beside a real-head u&prime; would invite exactly the
+              comparison the head badge exists to prevent. The real comparison — EDL against both
+              baselines on real states, and on the Eluvaitivu n&nbsp;=&nbsp;1 case study — is in{" "}
+              <code>real_m1_metrics.json</code>.
+            </div>
+          </section>
+        ) : (
         <section className="uncertainty__card">
           <div className="uncertainty__card-title">Baselines at this operating point</div>
           <div className="uncertainty__card-sub">
@@ -462,6 +668,7 @@ export default function UncertaintyRoute() {
             Read the bars as a ranking at this operating point, not as one common axis.
           </p>
         </section>
+        )}
       </div>
     </div>
   );

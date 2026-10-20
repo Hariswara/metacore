@@ -202,7 +202,23 @@ export class Module2RunError extends Error {
   }
 }
 
+export type Module2Head = "synthetic" | "real";
+
 export interface Module2RunResult {
+  /**
+   * Which trained head produced these numbers. The two are fitted on different
+   * distributions against different targets, so their values are NOT comparable — a
+   * synthetic u of 0.05 and a real u of 0.05 do not mean the same thing. The UI must
+   * always show this.
+   */
+  head: Module2Head;
+  /** "edl.onnx" or "edl_real.onnx". */
+  artifact: string;
+  /**
+   * Set only by the real head: its 3-class label is discretised from M1's constructed
+   * vulnerability proxy, not an observed safety class. Show it wherever its numbers show.
+   */
+  label_disclosure?: string | null;
   /** Plain epistemic vacuity u = K/S, quality-blind. */
   u: number;
   /** Quality-aware u' — what M3 actually gates on. */
@@ -213,13 +229,28 @@ export interface Module2RunResult {
   trigger: boolean;
   reason: "none" | "value" | "sensing" | "both";
   latency_ms: number;
-  baselines: { softmax: number; mc_dropout: number; edl: number };
+  /**
+   * null on the real head, and deliberately not faked: the baselines are fitted on the
+   * SYNTHETIC distribution, so showing them beside a real-head u would invite exactly
+   * the comparison the head field exists to prevent.
+   */
+  baselines: { softmax: number; mc_dropout: number; edl: number } | null;
   /** "onnx" when the exported graph ran, "torch" when it fell back to the head. */
   backend: string;
   /** Calibrated value-axis threshold the trigger compared u against. */
   value_threshold: number;
+  /**
+   * Empty when the input was clean. Non-empty means the engine repaired unusable input
+   * (truncated vector, NaN, bad mask) and forced the trigger, rather than raising —
+   * u_q is pinned to 1 in that case. See module2/sanitize.py.
+   */
+  input_problems?: string[];
 }
 
+/**
+ * Synthetic path — the novelty/quality sliders. `observedFraction` is taken as given
+ * because a manufactured state has no QualityMask behind it.
+ */
 export async function runModule2(
   novelty: number,
   observedFraction: number,
@@ -227,6 +258,47 @@ export async function runModule2(
   return postJson<Module2RunResult>(
     "/api/module2/run",
     { novelty, observed_fraction: observedFraction },
+    (detail, status) => new Module2RunError(detail, status),
+  );
+}
+
+/**
+ * Contract path — one real M1 state vector in.
+ *
+ * `features` is the pinned 28-feature `node_features` row and `qualityMask` its matching
+ * per-feature flags; both come straight off `assembleModule1State`. The sensing fraction
+ * is DERIVED from the mask server-side, so it is not a parameter here — passing one would
+ * let the caller claim a data quality the mask does not support.
+ */
+export async function runModule2State(
+  features: number[],
+  qualityMask: QualityFlag[],
+  head: Module2Head = "synthetic",
+): Promise<Module2RunResult> {
+  return postJson<Module2RunResult>(
+    "/api/module2/run",
+    { features, quality_mask: qualityMask, head },
+    (detail, status) => new Module2RunError(detail, status),
+  );
+}
+
+export interface Module2WarmResult {
+  head: Module2Head;
+  artifact: string;
+  ready: boolean;
+  warm_ms: number;
+  value_threshold: number;
+  label_disclosure: string;
+}
+
+/**
+ * Prime the real head so the first toggle in a live demo is not the call that pays.
+ * ~190 ms: its threshold is calibrated at train time, so there is no fixture to build.
+ */
+export async function warmModule2Real(): Promise<Module2WarmResult> {
+  return postJson<Module2WarmResult>(
+    "/api/module2/warm",
+    {},
     (detail, status) => new Module2RunError(detail, status),
   );
 }
