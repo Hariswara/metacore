@@ -174,6 +174,12 @@ def main_real():
     sample = torch.zeros(1, d_in)
 
     export(model, sample, REAL_MODEL_PATH)
+    # Seed the verification probe. Unseeded it draws a different input every run, which
+    # makes max_abs_diff_vs_torch irreproducible in the committed card and, worse, leaves
+    # the check a coin flip: a probe far from the data distribution amplifies the
+    # difference, and one run here landed at 1.1e-05 against an atol of 1e-05 -- passing
+    # only on np.allclose's rtol term. The synthetic path is seeded already, via build().
+    torch.manual_seed(ckpt["seed"])
     max_diff = verify(model, torch.randn(1, d_in), REAL_MODEL_PATH)
 
     REAL_CARD_PATH.write_text(json.dumps({
