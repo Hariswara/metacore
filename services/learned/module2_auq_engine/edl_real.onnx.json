@@ -1,0 +1,149 @@
+{
+  "artifact": "edl_real.onnx",
+  "produces": "evidence",
+  "trained_on": "real Module 1 states (module1.train.dataset), 28-feature contract",
+  "note": "Evidence only. u = K/(sum(evidence)+K), the observed_fraction discount and the competence-drop trigger are computed by infer.py, outside the graph, because observed_fraction is a per-state runtime input and the thresholds are calibrated per deployment.",
+  "architecture": {
+    "input_dim": 28,
+    "hidden": 32,
+    "classes": 3,
+    "class_names": [
+      "safe",
+      "stressed",
+      "critical"
+    ],
+    "feature_names": [
+      "p_kw_norm",
+      "q_kvar_norm",
+      "voltage_pu",
+      "soc_fraction",
+      "asset_online",
+      "ghi_wh_m2_norm",
+      "clearsky_index",
+      "wind_10m_ms_norm",
+      "wind_50m_ms_norm",
+      "pv_available_kw_norm",
+      "temp_2m_c_norm",
+      "humidity_2m_pct_norm",
+      "precip_mm_hr_norm",
+      "pressure_kpa_norm",
+      "load_kw_norm",
+      "load_ramp_kw_per_h_norm",
+      "hour_sin",
+      "hour_cos",
+      "doy_sin",
+      "doy_cos",
+      "nominal_kv_norm",
+      "critical_load",
+      "is_bus",
+      "is_pv",
+      "is_wind",
+      "is_bess",
+      "is_diesel",
+      "is_load"
+    ]
+  },
+  "io": {
+    "input": "state",
+    "output": "evidence",
+    "batch_size": 1,
+    "batch_note": "Fixed at 1 for the gate. Re-export with dynamic_shapes for batched offline evaluation."
+  },
+  "normalisation": {
+    "note": "Fitted on M1's REAL state distribution, where the five electrical features are QUALITY_MISSING and exactly 0.0. This is what removes the -48 sigma saturation the synthetic card produced on real rows. Constant columns are scaled by 1, not by the 1e-6 epsilon.",
+    "mean": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.23537524044513702,
+      0.4059046804904938,
+      0.5091977119445801,
+      0.5010579824447632,
+      0.02353736385703087,
+      0.008221330121159554,
+      0.7760140299797058,
+      0.08197540789842606,
+      0.00351076852530241,
+      0.41712069511413574,
+      -0.0070398710668087006,
+      3.632214754661911e-12,
+      0.0,
+      0.21233633160591125,
+      0.006399399135261774,
+      1.0,
+      0.4000000059604645,
+      0.4000000059604645,
+      0.10000000149011612,
+      0.0,
+      0.10000000149011612,
+      0.4000000059604645,
+      0.0
+    ],
+    "std": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      0.3094511926174164,
+      0.4268929362297058,
+      0.20312179625034332,
+      0.20553016662597656,
+      0.12065768986940384,
+      0.9993610978126526,
+      0.07549884170293808,
+      0.18626350164413452,
+      1.002817153930664,
+      0.20015090703964233,
+      0.039823032915592194,
+      0.7071077823638916,
+      0.7071077823638916,
+      0.6748080253601074,
+      0.7067425847053528,
+      1.0,
+      0.4899159371852875,
+      0.4899159371852875,
+      0.30002033710479736,
+      1.0,
+      0.30002033710479736,
+      0.4899159371852875,
+      1.0
+    ]
+  },
+  "trigger": {
+    "note": "Calibrated on real training u at train time, so serving needs no calibration pass. Fitting it on demand would mean rebuilding M1's 17,544-hour record and re-scoring 400 rows on the first request -- a cold start on the live toggle.",
+    "value_threshold": 0.9500935077667236,
+    "value_false_alarm_rate": 0.05,
+    "observed_fraction_floor": 0.35
+  },
+  "label": {
+    "source": "discretised M1 vulnerability proxy V",
+    "weighting": "equal",
+    "cuts_quantile": [
+      0.7,
+      0.95
+    ],
+    "cuts_v": [
+      0.2493734119670188,
+      0.358465580417083
+    ],
+    "disclosure": "The 3-class label is discretised from M1's constructed vulnerability proxy V (module1.train.target: hazard x exposure + fragility + stress), which M1 documents as a constructed proxy, never an observation, and carries as QUALITY_INTERPOLATED. No dataset records an observed microgrid safety class. Class cuts are quantiles of the TRAINING split only. Accuracy and ECE are therefore measured against a constructed target: they state internal consistency with M1's proxy, not the prediction of real asset failures."
+  },
+  "training": {
+    "seed": 0,
+    "epochs": 120,
+    "n_train": 32820,
+    "class_weighted": true
+  },
+  "export": {
+    "opset": 18,
+    "exporter": "torch.onnx.export(dynamo=True)",
+    "torch_version": "2.13.0+cpu"
+  },
+  "verification": {
+    "atol": 1e-05,
+    "max_abs_diff_vs_torch": 1.8007444980020655e-32
+  }
+}

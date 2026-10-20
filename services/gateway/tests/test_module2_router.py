@@ -209,3 +209,134 @@ def test_high_novelty_fires_the_value_axis() -> None:
     data = r.json()
     assert data["trigger"] is True
     assert data["reason"] == "value"
+
+
+# ---------------------------------------------------------------- the head selector
+
+
+def _contract_body(**extra) -> dict:
+    return {"features": _id_features(), "quality_mask": _mask(OBSERVED), **extra}
+
+
+def test_head_defaults_to_synthetic() -> None:
+    """The fallback demo path must stay the default. Real is strictly opt-in."""
+    r = client.post("/api/module2/run", json=_contract_body())
+    assert r.status_code == 200, r.text
+    data = r.json()
+
+    assert data["head"] == "synthetic"
+    assert data["artifact"] == "edl.onnx"
+    assert data["baselines"] is not None
+    assert data["label_disclosure"] is None
+
+
+def test_explicit_synthetic_matches_the_default() -> None:
+    """Naming the default must not change the answer."""
+    default = client.post("/api/module2/run", json=_contract_body()).json()
+    explicit = client.post("/api/module2/run", json=_contract_body(head="synthetic")).json()
+
+    for key in ("head", "artifact", "u", "u_q", "observed_fraction", "reason", "trigger"):
+        assert default[key] == explicit[key], key
+
+
+def test_the_novelty_form_still_defaults_to_synthetic() -> None:
+    r = client.post("/api/module2/run", json={"novelty": 0.1, "observed_fraction": 1.0})
+    assert r.status_code == 200, r.text
+    assert r.json()["head"] == "synthetic"
+
+
+def test_real_head_is_rejected_on_the_novelty_form() -> None:
+    """That form manufactures a state, and a head fitted on M1's real distribution has no
+    interpretation for one. A 422 is the honest answer, not a quiet number."""
+    r = client.post(
+        "/api/module2/run",
+        json={"novelty": 0.5, "observed_fraction": 1.0, "head": "real"},
+    )
+    assert r.status_code == 422
+
+
+def test_an_unknown_head_is_rejected() -> None:
+    assert client.post("/api/module2/run", json=_contract_body(head="wishful")).status_code == 422
+
+
+def _real_artifact_present() -> bool:
+    return all((MODULE2_DIR / name).exists()
+               for name in ("edl_real.onnx", "edl_real.onnx.json"))
+
+
+real_head = pytest.mark.skipif(
+    not _real_artifact_present(),
+    reason="edl_real.onnx not built; run `python train_real.py && python export_onnx.py --real`",
+)
+
+
+@real_head
+def test_the_real_head_serves_its_own_artifact() -> None:
+    r = client.post("/api/module2/run", json=_contract_body(head="real"))
+    assert r.status_code == 200, r.text
+    data = r.json()
+
+    assert data["head"] == "real"
+    assert data["artifact"] == "edl_real.onnx"
+    assert 0.0 <= data["u"] <= 1.0
+    assert data["reason"] in {"none", "value", "sensing", "both"}
+
+
+@real_head
+def test_the_real_head_reports_no_baselines() -> None:
+    """Deliberately absent rather than faked: those baselines are fitted on the SYNTHETIC
+    distribution, so reporting them beside a real-head u invites the exact comparison the
+    head field exists to prevent."""
+    data = client.post("/api/module2/run", json=_contract_body(head="real")).json()
+
+    assert data["baselines"] is None
+
+
+@real_head
+def test_the_real_head_carries_its_label_disclosure() -> None:
+    """Its label is discretised from M1's constructed vulnerability proxy, not an observed
+    safety class. That has to travel with the numbers, not only with the report."""
+    data = client.post("/api/module2/run", json=_contract_body(head="real")).json()
+
+    assert data["label_disclosure"]
+    assert "constructed proxy" in data["label_disclosure"]
+
+
+@real_head
+def test_the_two_heads_disagree_on_the_same_state() -> None:
+    """The whole point of the selector. The synthetic head saturates on a real M1 row;
+    the real head does not. If these ever matched, one of them would be mislabelled."""
+    state = _state()
+    body = {"features": state["features"], "quality_mask": state["quality_mask"]}
+    synthetic = client.post("/api/module2/run", json={**body, "head": "synthetic"}).json()
+    real = client.post("/api/module2/run", json={**body, "head": "real"}).json()
+
+    assert synthetic["u"] == pytest.approx(1.0, abs=1e-3)
+    assert synthetic["artifact"] != real["artifact"]
+
+
+@real_head
+def test_warm_primes_the_real_head() -> None:
+    """Cheap by construction: the threshold is calibrated at train time, so this is a
+    session create plus one forward pass rather than a fixture build."""
+    r = client.post("/api/module2/warm")
+    assert r.status_code == 200, r.text
+    data = r.json()
+
+    assert data["head"] == "real"
+    assert data["ready"] is True
+    assert data["warm_ms"] > 0.0
+    assert data["value_threshold"] > 0.0
+
+
+def test_a_missing_real_artifact_is_a_503_not_a_500(monkeypatch) -> None:
+    """edl_real.onnx is derived and git-ignored, so its absence on a fresh clone is an
+    ordinary state. The route must say how to build it, not fail opaquely."""
+    from gateway.routers import module2 as router_module
+
+    monkeypatch.setattr(router_module, "REAL_SCRIPT", "serve_real_does_not_exist.py")
+    r = client.post("/api/module2/run", json=_contract_body(head="real"))
+
+    assert r.status_code in {503, 500}
+    if r.status_code == 500:
+        pytest.fail(f"missing artifact surfaced as 500: {r.text[:300]}")

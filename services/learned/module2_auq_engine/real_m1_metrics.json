@@ -1,0 +1,128 @@
+{
+  "artifact": "module2 EDL head retrained on M1 real states",
+  "weighting": "equal",
+  "class_cuts_quantile": [
+    0.7,
+    0.95
+  ],
+  "class_cuts_v": [
+    0.2493734119670188,
+    0.358465580417083
+  ],
+  "class_names": [
+    "safe",
+    "stressed",
+    "critical"
+  ],
+  "class_balance": {
+    "train": {
+      "safe": 0.7,
+      "stressed": 0.25,
+      "critical": 0.05
+    },
+    "test": {
+      "safe": 0.5484601449275363,
+      "stressed": 0.3325634057971015,
+      "critical": 0.11897644927536231
+    }
+  },
+  "class_weights": {
+    "safe": 0.1741119772195816,
+    "stressed": 0.48305779695510864,
+    "critical": 2.342830181121826
+  },
+  "n_rows": {
+    "all": 175440,
+    "train_used": 32820,
+    "test": 22080
+  },
+  "epochs": 120,
+  "seed": 0,
+  "observed_fraction": 0.42857142857142855,
+  "elapsed_s": 107.0,
+  "label_disclosure": "The 3-class label is discretised from M1's constructed vulnerability proxy V (module1.train.target: hazard x exposure + fragility + stress), which M1 documents as a constructed proxy, never an observation, and carries as QUALITY_INTERPOLATED. No dataset records an observed microgrid safety class. Class cuts are quantiles of the TRAINING split only. Accuracy and ECE are therefore measured against a constructed target: they state internal consistency with M1's proxy, not the prediction of real asset failures.",
+  "classification_on_real_hourly_states": [
+    {
+      "method": "Softmax max-prob",
+      "accuracy": 0.8261,
+      "ece": 0.1467,
+      "aurc": 0.1148,
+      "macro_recall": 0.7234
+    },
+    {
+      "method": "MC-Dropout (T=20)",
+      "accuracy": 0.852,
+      "ece": 0.0793,
+      "aurc": 0.0729,
+      "macro_recall": 0.7579
+    },
+    {
+      "method": "EDL (ours)",
+      "accuracy": 0.8661,
+      "ece": 0.0737,
+      "aurc": 0.0739,
+      "macro_recall": 0.7731
+    }
+  ],
+  "two_axis_trigger": {
+    "value_threshold": 0.9501,
+    "value_threshold_exact": 0.9500935077667236,
+    "observed_fraction_floor": 0.35,
+    "rows": [
+      {
+        "population": "real states, nominal mask",
+        "observed_fraction": 0.4286,
+        "fires": 0.0779,
+        "reasons": {
+          "none": 0.9221,
+          "value": 0.0779
+        }
+      },
+      {
+        "population": "real states, temporal block lost",
+        "observed_fraction": 0.2857,
+        "fires": 1.0,
+        "reasons": {
+          "both": 0.0779,
+          "sensing": 0.9221
+        }
+      }
+    ]
+  },
+  "ood_case_study": {
+    "resolution": "per-plant monthly",
+    "n_episodes": 1,
+    "plant_months": {
+      "nominal_train": 87,
+      "nominal_heldout": 30,
+      "decay": 3
+    },
+    "rows": [
+      {
+        "method": "Softmax max-prob",
+        "auroc": 0.5667,
+        "aupr": 0.1459,
+        "fpr95": 0.7,
+        "mean_score_nominal_heldout": 0.0149,
+        "mean_score_decay": 0.0902
+      },
+      {
+        "method": "MC-Dropout (T=20)",
+        "auroc": 0.8222,
+        "aupr": 0.1891,
+        "fpr95": 0.3667,
+        "mean_score_nominal_heldout": 0.1095,
+        "mean_score_decay": 0.3799
+      },
+      {
+        "method": "EDL (ours)",
+        "auroc": 0.9778,
+        "aupr": 0.5167,
+        "fpr95": 0.0667,
+        "mean_score_nominal_heldout": 0.1617,
+        "mean_score_decay": 0.7484
+      }
+    ],
+    "disclosure": "OOD detection is evaluated ONLY as the Eluvaitivu per-plant monthly case study (eluvaitivu_decay.py experiment B), n = 1 episode / 3 decay plant-months. No OOD detection rate is claimed on hourly island-aggregate data: island_load_hourly.csv sums both Eluvaitivu plants, attenuating the event 7.1x (the plant falls 73.4% while island demand falls 10.3%), and the same-season control AUROC there is 0.500."
+  }
+}

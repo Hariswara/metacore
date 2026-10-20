@@ -274,19 +274,197 @@ Response: `u`, `u_q`, `evidence`, `observed_fraction`, `trigger`, `reason`, `lat
 `baselines`, `backend`, `value_threshold`, `input_problems`. Sending both forms, or
 neither, is a 422. `services/gateway/tests/test_module2_router.py` covers the wiring.
 
-### Known gap: the head does not yet recognise M1's real states
+### Serving the real head instead
 
-Scored against a real `/api/module1/assemble` row, the engine returns **`u = u' = 1.0`
-with `evidence = K`** — zero evidence, fully out of distribution. The wiring is correct
-and `f` derives correctly at 12/28; what is missing is a head **trained on M1's real
-feature distribution** rather than on `synthetic_data`. M1's row zero-fills the five
-electrical features (`QUALITY_MISSING`, no SCADA — ADR 0004) and the eight topology
-constants, which is nothing like the synthetic draws the head was fitted to.
+`/module2/run` and the dashboard serve the **synthetic** head, which is what the rest of
+this README measures and what the PP1 fallback demo shows. The head trained on M1's real
+states is a separate artifact, loaded explicitly:
 
-This is the next piece of M1→M2 integration, and it is pinned by
-`test_a_real_m1_state_currently_saturates_the_value_axis` so it cannot start passing
-silently. Until it lands, the page's **synthetic** form is the one that demonstrates the
-two axes; the contract form demonstrates the plumbing.
+```python
+auq = OnnxAUQ.load(model_path="edl_real.onnx", card_path="edl_real.onnx.json")
+```
+
+See **Retraining on M1's real states** below for what that head is and how it scores.
+
+## Retraining on M1's real states (`python train_real.py`)
+
+> **M2's uncertainty engine now runs on Module 1's real forecast states.** The head
+> trained on `synthetic_data` returned `u = 1.0` on every real M1 row; refitting the
+> normalisation card on the real distribution removes that at root, and the retrained
+> head returns `u` between **0.043 and 0.274** on a live `/forecast` payload.
+
+Full output in [`real_m1_metrics.json`](real_m1_metrics.json), which carries its own
+label and OOD disclosures inline so a table lifted out of it cannot lose them.
+
+### The root cause was the card, not the head
+
+The five electrical features are `QUALITY_MISSING` and exactly `0.0` on every offline M1
+row (no power-flow simulator, no SCADA — ADR 0004). The synthetic card was fitted on draws
+where `voltage_pu` ~ 1.0 ± 0.021, so a real row's `0.0` lands at:
+
+| feature | z on the synthetic card |
+|---|---|
+| `voltage_pu` | **−48.5 σ** |
+| `asset_online` | −8.0 σ |
+| `p_kw_norm` | −3.7 σ |
+| `q_kvar_norm` | −3.0 σ |
+| `soc_fraction` | −0.3 σ |
+| **RMS over the five** | **22 σ** |
+
+against an evidence regulariser trained to drive evidence to zero at **4 σ**. `u = 1.0`
+was the *correct* answer to a row that far outside the fitted distribution. M1 reached the
+same conclusion independently — `module1.train.dataset` drops those five from its own
+model inputs because "constant zeros carry no signal".
+
+### The label, and what it is not
+
+The 3-class label is discretised from M1's vulnerability proxy
+`V = w_H·E_type·H + w_F·F + w_S·S` (`module1.train.target`) at the **q0.70/q0.95 quantiles
+of the training split**, giving `V` cuts of 0.2494 / 0.3585.
+
+**V is a constructed proxy, not an observation** — M1's own words, carried as
+`QUALITY_INTERPOLATED`. No dataset records an observed microgrid safety class. Accuracy
+and ECE below therefore state *internal consistency with M1's proxy*, not the prediction
+of real asset failures. That sentence is `m1_real.PROXY_DISCLOSURE` and is written into
+every metrics artifact.
+
+| split | node-rows | safe | stressed | critical |
+|---|---|---|---|---|
+| train | 131,280 (32,820 used) | 0.700 | 0.250 | 0.050 |
+| test | 22,080 | 0.548 | 0.333 | **0.119** |
+
+`critical` more than doubles in the test split — which is the Eluvaitivu decay quarter —
+so the split tests a shift rather than a reshuffle. It is also sparse enough at 5% that
+the loss is **class-weighted** (inverse frequency, normalised to mean 1: 0.174 / 0.483 /
+2.343), or the head buys its accuracy by never predicting it.
+
+Four leakage guards: cuts from train only; M1 scales hazard on training quantiles only;
+M1 lags the fragility decay a month; and M1's own `vulnerability` history feature is
+dropped by construction, since the 28-feature contract has no such field.
+
+### Classification on real test states
+
+The label is the discretised proxy. No AUROC here — that needs an OOD label the hourly
+record does not carry (see below).
+
+| method | accuracy | macro-recall | ECE | AURC |
+|---|---|---|---|---|
+| Softmax max-prob | 0.826 | 0.723 | 0.147 | 0.115 |
+| MC-Dropout (T=20) | 0.852 | 0.758 | 0.079 | 0.073 |
+| **EDL (ours)** | **0.866** | **0.773** | **0.074** | 0.074 |
+
+### OOD detection — n = 1, and only where the episode is visible
+
+Eluvaitivu per-plant monthly ledger: 1 episode, 3 decay plant-months against held-out
+nominal.
+
+| method | AUROC | AUPR | FPR95 |
+|---|---|---|---|
+| Softmax max-prob | 0.567 | 0.146 | 0.700 |
+| MC-Dropout (T=20) | 0.822 | 0.189 | 0.367 |
+| **EDL (ours)** | **0.978** | **0.517** | **0.067** |
+
+**No OOD detection rate is claimed on hourly data.** `island_load_hourly.csv` sums both
+Eluvaitivu plants, attenuating the event **7.1×** (plant −73.4%, island demand −10.3%),
+and the same-season control AUROC there is **0.500**. This is `m1_real.OOD_DISCLOSURE`,
+and it is the reason the hourly table above reports no AUROC at all.
+
+### The two axes, on real states
+
+Value threshold calibrated on real training `u` at the same 5% false-alarm rate; sensing
+floor unchanged at 0.35. The mask is degraded, never the values — same rows, fewer of them
+declared observed.
+
+| population | f | fires | reasons |
+|---|---|---|---|
+| real states, nominal mask | 0.4286 | 0.078 | `none` 0.92, `value` 0.08 |
+| real states, temporal block lost | 0.2857 | **1.000** | `sensing` 0.92, `both` 0.08 |
+
+### Old vs new, on one live `/forecast` payload
+
+`python compare_real_vs_synthetic.py` — 2025-11-28T08:00, test split, all 10 nodes,
+scored through `infer.OnnxAUQ.score()` with each artifact in turn:
+
+| | synthetic `edl.onnx` | real `edl_real.onnx` |
+|---|---|---|
+| min `u` | 1.0000 | **0.0427** |
+| mean `u` | 1.0000 | **0.1288** |
+| max `u` | 1.0000 | **0.2740** |
+| nodes at `u` > 0.99 | **10 / 10** | **0 / 10** |
+
+The synthetic head fires on nothing, which looks reassuring and is not: its threshold
+calibrates to ~1.0 as well, because it saturates on the calibration states too. A head
+that returns 1.0 for everything is not cautious, it is uninformative.
+
+**What "does not saturate" means precisely.** The retrained head keeps a genuine
+high-uncertainty tail — roughly 6–10% of rows sit above `u` = 0.99 — and that tail is
+present in the **training** split too (5.5%), so it is the head declining to commit on
+hard states, not an artifact of the test period. Median `u` is 0.06–0.08 across all three
+splits. `u` also still varies *within* the real distribution: mean `u` on `critical` rows
+exceeds `safe` rows, so not-saturating did not come at the cost of going flat.
+
+### Serving it: `head=` on `/module2/run`
+
+Both heads are reachable, and which one answered is part of the answer:
+
+```bash
+# default -- the synthetic head, unchanged
+curl -s localhost:8000/api/module2/run -H 'content-type: application/json'   -d '{"features": [...28...], "quality_mask": [...28...]}'
+
+# opt in to the real head
+curl -s localhost:8000/api/module2/run -H 'content-type: application/json'   -d '{"features": [...], "quality_mask": [...], "head": "real"}'
+
+curl -s -X POST localhost:8000/api/module2/warm       # prime it, ~190 ms
+```
+
+| | `head=synthetic` (default) | `head=real` |
+|---|---|---|
+| artifact | `edl.onnx` | `edl_real.onnx` |
+| script | `infer_one.py` | `serve_real.py` |
+| cold / warm | 13.6 s / 3.1 s | **0.56 s** (no fixture, no calibration) |
+| `baselines` | present | `null` — fitted on synthetic data, so not comparable |
+| `label_disclosure` | absent | the constructed-proxy sentence |
+| novelty-slider form | yes | **422** — no interpretation for a manufactured state |
+
+`head` defaults to `synthetic`, so the fallback path is unchanged unless asked otherwise.
+The real head is a separate script rather than a branch inside `infer_one.py`, so no edit
+to it can change what the fallback returns. A missing `edl_real.onnx` is a **503** naming
+the command that builds it, never a 500 — it is derived and git-ignored, so its absence on
+a fresh clone is ordinary.
+
+### The demo trap worth knowing
+
+Uncertainty on real states concentrates sharply in the **evening peak**:
+
+| hours | share of all hours | share of rows with `u` > 0.99 | mean `u` |
+|---|---|---|---|
+| 18:00–20:00 | 12.5% | **62.0%** | 0.538 |
+| all others | 87.5% | 38.0% | 0.135 |
+
+18:00 alone has **51.9%** of its rows above `u` = 0.99, against 2.8% outside the peak —
+and `module1.assemble`'s **default timestamp is `2024-06-15T18:00`**. A demo left on
+defaults therefore shows `u` = 1.000 on the real head and looks identical to the
+saturation this work fixed. The dashboard labels that preset "u saturates here".
+
+This is the head declining to commit where the grid is most stressed and the `critical`
+class concentrates, which is defensible — but it is also the honest limitation: the engine
+is least confident exactly when a decision matters most.
+
+### Reproducing it
+
+```bash
+python train_real.py                  # ~135s -> real_m1_metrics.json + .real_cache/
+python export_onnx.py --real          # -> edl_real.onnx (verified vs torch at 0.00e+00)
+python compare_real_vs_synthetic.py   # the old-vs-new table above
+```
+
+Trained on every 4th hour, keeping all 10 nodes of the hours kept (hourly grid states are
+strongly autocorrelated, so a stride loses little and covers the diurnal cycle evenly):
+131,280 → 32,820 rows, 120 epochs, seeded.
+
+**The synthetic path is untouched.** `run_demo.py`, `edl.onnx`, `infer_one.py` and the
+dashboard all still serve the mock demo, which stays the guaranteed fallback —
+`edl_real.onnx` is written alongside `edl.onnx`, never over it.
 
 ## Real data: the Eluvaitivu degradation (`python eluvaitivu_decay.py`)
 
@@ -433,6 +611,10 @@ python run_demo.py
 - `infer.py` — the serving path M3 calls: ONNX evidence + uncertainty + trigger, no torch at inference. `score_state` is the resilient entry point (derives `f` from the mask, never raises).
 - `bench_latency.py` + `latency_table.json` — batch-1 p50/p99 **script** for torch-eager vs ONNX Runtime.
 - `contract.py` + `M2_TO_M3_CONTRACT.md` — **M2→M3 message + mock stream for Saabir**.
+- `m1_real.py` — **real M1 states** on the 28-feature contract, with the 3-class label discretised from M1's vulnerability proxy V. Carries `PROXY_DISCLOSURE` / `OOD_DISCLOSURE` as module constants so the caveats travel with the numbers.
+- `train_real.py` + `real_m1_metrics.json` — refits the normalisation card on the real distribution, retrains the head class-weighted, and runs the full validation.
+- `compare_real_vs_synthetic.py` — scores one live `/forecast` payload through both artifacts; the acceptance check for the retrain.
+- `edl_real.onnx` + `edl_real.onnx.json` — the real-distribution artifact and its card, written alongside `edl.onnx` so the mock demo keeps serving the head it was measured with.
 - `run_demo.py` — end-to-end prototype (~59s): trains the head, prints the OOD metrics, the baseline comparison, the trigger breakdown, the selective-prediction curve and the sensing sweep; writes `sample_m2_to_m3.jsonl` and `eval_tables.json`.
 - `config.yaml` — K, features, training and trigger settings (retune without code changes).
 

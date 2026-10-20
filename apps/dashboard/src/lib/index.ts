@@ -202,7 +202,23 @@ export class Module2RunError extends Error {
   }
 }
 
+export type Module2Head = "synthetic" | "real";
+
 export interface Module2RunResult {
+  /**
+   * Which trained head produced these numbers. The two are fitted on different
+   * distributions against different targets, so their values are NOT comparable — a
+   * synthetic u of 0.05 and a real u of 0.05 do not mean the same thing. The UI must
+   * always show this.
+   */
+  head: Module2Head;
+  /** "edl.onnx" or "edl_real.onnx". */
+  artifact: string;
+  /**
+   * Set only by the real head: its 3-class label is discretised from M1's constructed
+   * vulnerability proxy, not an observed safety class. Show it wherever its numbers show.
+   */
+  label_disclosure?: string | null;
   /** Plain epistemic vacuity u = K/S, quality-blind. */
   u: number;
   /** Quality-aware u' — what M3 actually gates on. */
@@ -213,7 +229,12 @@ export interface Module2RunResult {
   trigger: boolean;
   reason: "none" | "value" | "sensing" | "both";
   latency_ms: number;
-  baselines: { softmax: number; mc_dropout: number; edl: number };
+  /**
+   * null on the real head, and deliberately not faked: the baselines are fitted on the
+   * SYNTHETIC distribution, so showing them beside a real-head u would invite exactly
+   * the comparison the head field exists to prevent.
+   */
+  baselines: { softmax: number; mc_dropout: number; edl: number } | null;
   /** "onnx" when the exported graph ran, "torch" when it fell back to the head. */
   backend: string;
   /** Calibrated value-axis threshold the trigger compared u against. */
@@ -252,10 +273,32 @@ export async function runModule2(
 export async function runModule2State(
   features: number[],
   qualityMask: QualityFlag[],
+  head: Module2Head = "synthetic",
 ): Promise<Module2RunResult> {
   return postJson<Module2RunResult>(
     "/api/module2/run",
-    { features, quality_mask: qualityMask },
+    { features, quality_mask: qualityMask, head },
+    (detail, status) => new Module2RunError(detail, status),
+  );
+}
+
+export interface Module2WarmResult {
+  head: Module2Head;
+  artifact: string;
+  ready: boolean;
+  warm_ms: number;
+  value_threshold: number;
+  label_disclosure: string;
+}
+
+/**
+ * Prime the real head so the first toggle in a live demo is not the call that pays.
+ * ~190 ms: its threshold is calibrated at train time, so there is no fixture to build.
+ */
+export async function warmModule2Real(): Promise<Module2WarmResult> {
+  return postJson<Module2WarmResult>(
+    "/api/module2/warm",
+    {},
     (detail, status) => new Module2RunError(detail, status),
   );
 }
