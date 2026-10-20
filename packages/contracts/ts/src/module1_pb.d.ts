@@ -19,6 +19,18 @@ export declare const file_module1: GenFile;
  * The state representation. Frozen before the live stream exists so M2's evidential head can be
  * sized against a real schema rather than a guess.
  *
+ * PINNED AT v1.0. The concrete values a consumer needs -- embedding_dim, the ordered
+ * feature_names, per-feature units and sources, and which features are QUALITY_OBSERVED rather
+ * than merely present -- live in a machine-readable pin next to the generated stubs:
+ *
+ *   packages/contracts/python/metacore_contracts/schema/module1_state_v1.json
+ *   from metacore_contracts.state_schema import EMBEDDING_DIM, FEATURE_NAMES, SCHEMA_VERSION
+ *
+ * A proto cannot say what a `repeated string feature_names` contains, so that file is the half of
+ * the contract that lets M2 drop its mock. embedding_dim = 64, len(feature_names) = 28.
+ * Reordering or resizing is a minor bump; renaming or removing a feature is a major bump and
+ * needs an adapter.
+ *
  * @generated from message metacore.module1.v1.StateRepresentation
  */
 export declare type StateRepresentation = Message<"metacore.module1.v1.StateRepresentation"> & {
@@ -89,6 +101,18 @@ export declare const StateRepresentationSchema: GenMessage<StateRepresentation>;
  * The canonical network model. M1 and M4 must instantiate an identical physical state, so the
  * topology is owned in one place and versioned.
  *
+ * DRAFT v1.0 (topology "northern-islands-v1"), pending joint M1/M4 sign-off. The concrete network
+ * -- buses, lines, assets, the node map from M1's forecaster graph, and the provenance of every
+ * value -- is pinned next to the generated stubs, with the OpenDSS model generated from the same
+ * table:
+ *
+ *   packages/contracts/python/metacore_contracts/schema/module1_topology_v1.json
+ *   packages/contracts/python/metacore_contracts/topology/northern_islands_v1.dss
+ *   from metacore_contracts.topology_schema import DSS_PATH, TOPOLOGY_ID, node_map
+ *
+ * v1.0 adds `assets` (field 6) to GridTopology, `quality` to NodeState and
+ * `assets_out_of_service` to GridStateSnapshot. All additive: v0 readers are unaffected.
+ *
  * @generated from message metacore.module1.v1.GridTopology
  */
 export declare type GridTopology = Message<"metacore.module1.v1.GridTopology"> & {
@@ -98,7 +122,7 @@ export declare type GridTopology = Message<"metacore.module1.v1.GridTopology"> &
   envelope?: Envelope | undefined;
 
   /**
-   * e.g. "delft-3island-v1"
+   * e.g. "northern-islands-v1"
    *
    * @generated from field: string topology_id = 2;
    */
@@ -110,14 +134,25 @@ export declare type GridTopology = Message<"metacore.module1.v1.GridTopology"> &
   opendssMasterFile: string;
 
   /**
+   * buses
+   *
    * @generated from field: repeated metacore.module1.v1.Node nodes = 4;
    */
   nodes: Node[];
 
   /**
+   * lines
+   *
    * @generated from field: repeated metacore.module1.v1.Edge edges = 5;
    */
   edges: Edge[];
+
+  /**
+   * generating assets, each attached to a bus
+   *
+   * @generated from field: repeated metacore.module1.v1.Asset assets = 6;
+   */
+  assets: Asset[];
 };
 
 /**
@@ -125,6 +160,53 @@ export declare type GridTopology = Message<"metacore.module1.v1.GridTopology"> &
  * Use `create(GridTopologySchema)` to create a new message.
  */
 export declare const GridTopologySchema: GenMessage<GridTopology>;
+
+/**
+ * @generated from message metacore.module1.v1.Asset
+ */
+export declare type Asset = Message<"metacore.module1.v1.Asset"> & {
+  /**
+   * OpenDSS element name, e.g. "ELU_HYB_BESS"
+   *
+   * @generated from field: string element = 1;
+   */
+  element: string;
+
+  /**
+   * Node.node_id it connects to
+   *
+   * @generated from field: string bus = 2;
+   */
+  bus: string;
+
+  /**
+   * @generated from field: metacore.module1.v1.AssetType asset_type = 3;
+   */
+  assetType: AssetType;
+
+  /**
+   * @generated from field: double rating_kva = 4;
+   */
+  ratingKva: number;
+
+  /**
+   * @generated from field: bool in_service = 5;
+   */
+  inService: boolean;
+
+  /**
+   * the island's reference source (lead diesel genset)
+   *
+   * @generated from field: bool grid_forming = 6;
+   */
+  gridForming: boolean;
+};
+
+/**
+ * Describes the message metacore.module1.v1.Asset.
+ * Use `create(AssetSchema)` to create a new message.
+ */
+export declare const AssetSchema: GenMessage<Asset>;
 
 /**
  * @generated from message metacore.module1.v1.Node
@@ -227,9 +309,18 @@ export declare type GridStateSnapshot = Message<"metacore.module1.v1.GridStateSn
   nodeStates: NodeState[];
 
   /**
+   * 3600 offline: the record is hourly at best
+   *
    * @generated from field: double update_period_s = 4;
    */
   updatePeriodS: number;
+
+  /**
+   * Asset.element values M4 must disable
+   *
+   * @generated from field: repeated string assets_out_of_service = 5;
+   */
+  assetsOutOfService: string[];
 };
 
 /**
@@ -268,6 +359,14 @@ export declare type NodeState = Message<"metacore.module1.v1.NodeState"> & {
    * @generated from field: double soc_fraction = 5;
    */
   socFraction: number;
+
+  /**
+   * Per field, in the order voltage_pu, p_kw, q_kvar, soc_fraction. A QUALITY_MISSING field's
+   * value is meaningless and must not be applied (proto3 cannot distinguish 0 from unset).
+   *
+   * @generated from field: metacore.common.v1.QualityMask quality = 6;
+   */
+  quality?: QualityMask | undefined;
 };
 
 /**
