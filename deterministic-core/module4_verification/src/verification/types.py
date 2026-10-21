@@ -95,6 +95,9 @@ class VerificationVerdict(BaseModel):
     violations: list[Violation] = Field(default_factory=list)
     solve_latency_ms: float = Field(ge=0.0, description="AC power flow solve latency in ms")
     spec_version: str = "safety-spec-v1.0"
+    limit_profile: str = Field(
+        default="METACORE-STRICT-v1", description="Versioned limit profile the verdict used"
+    )
 
 
 class RejectionTrace(BaseModel):

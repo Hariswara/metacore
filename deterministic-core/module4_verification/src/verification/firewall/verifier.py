@@ -14,16 +14,18 @@ from ..types import (
     Violation,
     ViolationType,
 )
-from .limits import PhysicsLimitsChecker
+from .limits import DEFAULT_PROFILE, PhysicsLimitsChecker, SafetyLimitsConfig
 
 
 class PhysicsVerifier:
     """Synchronous physical verification firewall for MetaCore."""
 
-    def __init__(self, circuit_twin: CircuitTwin | None = None) -> None:
+    def __init__(
+        self, circuit_twin: CircuitTwin | None = None, profile: str = DEFAULT_PROFILE
+    ) -> None:
         self.circuit = circuit_twin or CircuitTwin()
         self.applicator = ActionApplicator(self.circuit)
-        self.limits_checker = PhysicsLimitsChecker()
+        self.limits_checker = PhysicsLimitsChecker(SafetyLimitsConfig.from_profile(profile))
 
     def verify(
         self, action: ProposedControlAction, snapshot: dict | None = None
@@ -116,4 +118,5 @@ class PhysicsVerifier:
             decision=decision,
             violations=violations,
             solve_latency_ms=latency_ms,
+            limit_profile=self.limits_checker.config.profile,
         )

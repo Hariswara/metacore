@@ -3,11 +3,16 @@
 ZERO ML DEPENDENCIES.
 """
 
+import json
 import math
 from dataclasses import dataclass
+from pathlib import Path
 
 from ..opendss.circuit import CircuitTwin
 from ..types import Violation, ViolationType
+
+PROFILES_DIR = Path(__file__).parent / "profiles"
+DEFAULT_PROFILE = "METACORE-STRICT"
 
 
 @dataclass
@@ -17,13 +22,38 @@ class SafetyLimitsConfig:
     v_min_pu: float = 0.95
     v_max_pu: float = 1.05
     thermal_overload_margin: float = 0.0  # 0.0 means strictly <= NormAmps
+    # Which versioned limit profile these numbers came from; recorded on every verdict.
+    profile: str = f"{DEFAULT_PROFILE}-v1"
+
+    @classmethod
+    def from_profile(cls, profile_id: str = DEFAULT_PROFILE) -> "SafetyLimitsConfig":
+        """Loads a versioned limit profile from firewall/profiles/ by its id (case-insensitive)."""
+        spec = available_profiles().get(profile_id.upper())
+        if spec is None:
+            raise KeyError(f"unknown limit profile {profile_id!r}; "
+                           f"known: {sorted(available_profiles())}")
+        return cls(
+            v_min_pu=float(spec["v_min_pu"]),
+            v_max_pu=float(spec["v_max_pu"]),
+            thermal_overload_margin=float(spec["thermal_overload_margin"]),
+            profile=f"{spec['profile_id']}-v{spec['version']}",
+        )
+
+
+def available_profiles() -> dict[str, dict]:
+    """Every profile file, keyed by upper-case profile_id."""
+    out: dict[str, dict] = {}
+    for f in sorted(PROFILES_DIR.glob("*.json")):
+        spec = json.loads(f.read_text())
+        out[spec["profile_id"].upper()] = spec
+    return out
 
 
 class PhysicsLimitsChecker:
     """Evaluates circuit state against physics boundaries and constructs Violation objects."""
 
     def __init__(self, config: SafetyLimitsConfig | None = None) -> None:
-        self.config = config or SafetyLimitsConfig()
+        self.config = config or SafetyLimitsConfig.from_profile(DEFAULT_PROFILE)
 
     def check_limits(self, circuit: CircuitTwin, converged: bool) -> list[Violation]:
         """Runs comprehensive checks on voltage, line loading, adequacy and convergence."""
