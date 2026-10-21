@@ -21,6 +21,8 @@ class TemplateCausalLogger:
         lat_str = (
             f" (power flow solved in {verdict.solve_latency_ms:.1f} ms)" if include_latency else ""
         )
+        if verdict.decision == Decision.DECISION_UNVERIFIED:
+            return TemplateCausalLogger._unverified_log(verdict)
         if verdict.decision == Decision.DECISION_APPROVE or not verdict.violations:
             return CausalLog(
                 action_id=verdict.action_id,
@@ -81,5 +83,23 @@ class TemplateCausalLogger:
             action_id=verdict.action_id,
             text=summary_text,
             grounded_entities=grounded_entities,
+            generator=Generator.GENERATOR_TEMPLATE,
+        )
+
+    @staticmethod
+    def _unverified_log(verdict: VerificationVerdict) -> CausalLog:
+        """UNVERIFIED is never phrased as safe: it says what M4 could not establish."""
+        reasons = list(verdict.unverified_reasons)
+        grounded: list[str] = []
+        for v in verdict.violations:
+            if v.element_id not in grounded:
+                grounded.append(v.element_id)
+            if v.type == ViolationType.VIOLATION_TYPE_NON_CONVERGENCE:
+                reasons.append("AC power flow solver failed to converge")
+        detail = "; ".join(dict.fromkeys(reasons)) or "the checker could not establish safety"
+        return CausalLog(
+            action_id=verdict.action_id,
+            text=f"Action NOT VERIFIED (treat as not approved): {detail}.",
+            grounded_entities=grounded,
             generator=Generator.GENERATOR_TEMPLATE,
         )

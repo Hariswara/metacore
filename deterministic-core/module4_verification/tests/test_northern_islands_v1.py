@@ -129,19 +129,21 @@ def test_load_shed_is_a_fraction_of_the_snapshot_demand() -> None:
     assert v.verify(shed, snapshot=snap).decision == Decision.DECISION_APPROVE
 
 
-def test_a_snapshot_for_another_topology_is_rejected() -> None:
+def test_a_snapshot_for_another_topology_is_unverified() -> None:
+    """M4 does not know the state it would judge: not approved, and not the action's fault."""
     snap = dict(sample("calm"), topology_id="delft-3island-v0")
     verdict = PhysicsVerifier(twin()).verify(noop(), snapshot=snap)
-    assert verdict.decision == Decision.DECISION_REJECT
-    assert verdict.violations[0].type == ViolationType.VIOLATION_TYPE_MALFORMED_ACTION
+    assert verdict.decision == Decision.DECISION_UNVERIFIED
+    assert "topology" in verdict.unverified_reasons[0]
 
 
-def test_a_snapshot_naming_an_unknown_bus_is_rejected() -> None:
+def test_a_snapshot_naming_an_unknown_bus_is_unverified() -> None:
     snap = sample("calm")
     snap["node_states"].append({"node_id": "N8", "p_kw": 10.0, "q_kvar": 1.0,
                                 "quality": {"p_kw": "QUALITY_INTERPOLATED"}})
     verdict = PhysicsVerifier(twin()).verify(noop(), snapshot=snap)
-    assert verdict.decision == Decision.DECISION_REJECT
+    assert verdict.decision == Decision.DECISION_UNVERIFIED
+    assert any("N8" in r for r in verdict.unverified_reasons)
 
 
 def test_the_firewall_still_bites_on_this_model() -> None:

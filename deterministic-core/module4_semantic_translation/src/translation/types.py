@@ -12,6 +12,10 @@ class Decision(StrEnum):
     DECISION_UNSPECIFIED = "DECISION_UNSPECIFIED"
     DECISION_APPROVE = "DECISION_APPROVE"
     DECISION_REJECT = "DECISION_REJECT"
+    # The checker could not establish safety: solver error, non-convergence, a malformed
+    # snapshot, or (with the risk certificate) evidence that straddles the risk target.
+    # Never an approval -- M3 treats it as not approved.
+    DECISION_UNVERIFIED = "DECISION_UNVERIFIED"
 
 
 class ViolationType(StrEnum):
@@ -65,6 +69,7 @@ class VerificationVerdict(BaseModel):
     decision: Decision
     violations: list[Violation] = Field(default_factory=list)
     solve_latency_ms: float = 0.0
+    unverified_reasons: list[str] = Field(default_factory=list)
 
 
 class RejectionTrace(BaseModel):
