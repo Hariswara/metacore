@@ -5,6 +5,7 @@ short feeders, so the violations an action can cause come from the Eluvaitivu hy
 sits behind 0.7 km of 400 V cable, where a battery charging or exporting moves the voltage.
 """
 
+import pytest
 from verification.firewall.verifier import PhysicsVerifier
 from verification.opendss.circuit import CircuitTwin
 from verification.types import (
@@ -134,7 +135,9 @@ def test_bus_dispatch_is_split_across_in_service_units() -> None:
     twin = CircuitTwin()
     assert twin.set_generator_dispatch("NAI_PS", 100.0, 20.0)
     gens = twin.get_generator_states()
-    assert gens["NAI_DG2"]["p_kw"] == gens["NAI_DG3"]["p_kw"] == 50.0
+    # OpenDSS stores kW as a float: compare with a tolerance (Linux reads back 50.00000000000001)
+    assert gens["NAI_DG2"]["p_kw"] == pytest.approx(50.0)
+    assert gens["NAI_DG3"]["p_kw"] == pytest.approx(50.0)
     # A unit name addresses just that unit
     assert twin.set_generator_dispatch("NAI_DG2", 80.0)
-    assert twin.get_generator_states()["NAI_DG2"]["p_kw"] == 80.0
+    assert twin.get_generator_states()["NAI_DG2"]["p_kw"] == pytest.approx(80.0)
