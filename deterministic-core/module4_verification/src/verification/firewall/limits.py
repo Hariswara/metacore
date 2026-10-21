@@ -1,8 +1,9 @@
-"""Physics Limits Checker: Evaluates voltage and thermal ampacity boundaries.
+"""Physics Limits Checker: Evaluates voltage, thermal ampacity and generation adequacy.
 
 ZERO ML DEPENDENCIES.
 """
 
+import math
 from dataclasses import dataclass
 
 from ..opendss.circuit import CircuitTwin
@@ -25,7 +26,7 @@ class PhysicsLimitsChecker:
         self.config = config or SafetyLimitsConfig()
 
     def check_limits(self, circuit: CircuitTwin, converged: bool) -> list[Violation]:
-        """Runs comprehensive checks on voltage, line loading, and solver convergence."""
+        """Runs comprehensive checks on voltage, line loading, adequacy and convergence."""
         violations: list[Violation] = []
 
         # 1. Check AC power-flow convergence
@@ -42,7 +43,7 @@ class PhysicsLimitsChecker:
             )
             return violations
 
-        # 2. Check nodal bus voltages (0.95 <= V_pu <= 1.05)
+        # 2. Check nodal bus voltages (v_min <= V_pu <= v_max)
         bus_voltages = circuit.get_bus_voltages_pu()
         for bus, v_pu in bus_voltages.items():
             if v_pu < self.config.v_min_pu:
@@ -90,4 +91,68 @@ class PhysicsLimitsChecker:
                     )
                 )
 
+        # 4. Generation adequacy per island (needs the topology pin for the lead-genset ratings)
+        violations.extend(self.check_generation_adequacy(circuit))
+
+        return violations
+
+    @staticmethod
+    def island_adequacy(circuit: CircuitTwin) -> dict[str, dict[str, float | str]]:
+        """Apparent-power demand against in-service generating capacity, per island.
+
+        Capacity is the grid-forming lead genset's rating (from the pin; the model holds it as a
+        stiff source) plus the kVA of every in-service Generator that is not absorbing power.
+        Demand is every load plus anything charging (a battery with negative kW). Returns {} for
+        a model without a pin.
+        """
+        if not circuit.pin:
+            return {}
+        bus_island = {b["node_id"].upper(): b["island"] for b in circuit.pin["buses"]}
+        station: dict[str, str] = {}
+        cap: dict[str, float] = {}
+        p_dem: dict[str, float] = {}
+        q_dem: dict[str, float] = {}
+        for a in circuit.pin["assets"]:
+            if a.get("grid_forming") and a.get("in_service", True):
+                island = a["island"]
+                cap[island] = cap.get(island, 0.0) + float(a["rating_kva"])
+                station[island] = a["bus"].upper()
+        for name, (p, q) in circuit.get_load_demand().items():
+            island = bus_island[circuit.load_bus(name)]
+            p_dem[island] = p_dem.get(island, 0.0) + p
+            q_dem[island] = q_dem.get(island, 0.0) + q
+        for name, g in circuit.get_generator_states().items():
+            if g["enabled"] < 0.5:
+                continue
+            island = bus_island[circuit.generator_bus(name)]
+            if g["p_kw"] < 0.0:
+                p_dem[island] = p_dem.get(island, 0.0) - g["p_kw"]
+                q_dem[island] = q_dem.get(island, 0.0) + max(0.0, -g["q_kvar"])
+            else:
+                cap[island] = cap.get(island, 0.0) + g["kva"]
+        return {
+            island: {
+                "station": station.get(island, island),
+                "demand_kva": math.hypot(p_dem.get(island, 0.0), q_dem.get(island, 0.0)),
+                "capacity_kva": cap[island],
+            }
+            for island in sorted(cap)
+        }
+
+    def check_generation_adequacy(self, circuit: CircuitTwin) -> list[Violation]:
+        """One GENERATION_INADEQUATE violation per island whose demand exceeds its capacity."""
+        violations: list[Violation] = []
+        for island, a in self.island_adequacy(circuit).items():
+            demand, capacity = float(a["demand_kva"]), float(a["capacity_kva"])
+            if demand > capacity:
+                violations.append(
+                    Violation(
+                        type=ViolationType.VIOLATION_TYPE_GENERATION_INADEQUATE,
+                        element_id=str(a["station"]),
+                        limit=round(capacity, 2),
+                        measured=round(demand, 2),
+                        margin_fraction=round((demand - capacity) / capacity, 4),
+                        attributed_component=f"island.{island}",
+                    )
+                )
         return violations

@@ -134,6 +134,14 @@ class CircuitTwin:
         self._cache_base_equipment()
         return problems
 
+    def load_bus(self, load_name: str) -> str:
+        """Upper-case bus a load hangs off."""
+        return self._load_bus[load_name.lower()].upper()
+
+    def generator_bus(self, gen_name: str) -> str:
+        """Upper-case bus a generator hangs off."""
+        return self._gen_bus[gen_name.lower()].upper()
+
     def loads_by_bus(self) -> dict[str, list[str]]:
         """Load names (lower-case) grouped by the bus they hang off."""
         out: dict[str, list[str]] = {}

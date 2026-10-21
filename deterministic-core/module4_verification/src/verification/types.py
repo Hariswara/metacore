@@ -25,6 +25,9 @@ class ViolationType(StrEnum):
     VIOLATION_TYPE_THERMAL_OVERLOAD = "VIOLATION_TYPE_THERMAL_OVERLOAD"
     VIOLATION_TYPE_NON_CONVERGENCE = "VIOLATION_TYPE_NON_CONVERGENCE"
     VIOLATION_TYPE_MALFORMED_ACTION = "VIOLATION_TYPE_MALFORMED_ACTION"
+    # Island demand above the in-service generating capacity. The model's lead genset is a stiff
+    # source that never runs out, so without this check an overloaded station would pass.
+    VIOLATION_TYPE_GENERATION_INADEQUATE = "VIOLATION_TYPE_GENERATION_INADEQUATE"
 
 
 class Violation(BaseModel):
