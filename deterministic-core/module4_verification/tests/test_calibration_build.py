@@ -153,3 +153,14 @@ def test_the_check_cli_passes_on_the_committed_artifact() -> None:
     from verification.calibrate.__main__ import main
 
     assert main(["check"]) == 0
+
+
+def test_the_wheel_ships_the_frozen_calibration() -> None:
+    """The root .gitignore hides **/artifacts/*; the wheel must force-include the artifact."""
+    import tomllib
+
+    pyproject = tomllib.loads((Path(__file__).resolve().parents[1] / "pyproject.toml")
+                              .read_text())
+    included = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
+    assert included["src/verification/artifacts/calibration_v1.json"] == \
+        "verification/artifacts/calibration_v1.json"
