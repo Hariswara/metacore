@@ -26,6 +26,7 @@ from translation.types import (
     ProposedControlAction as TransProposedAction,
 )
 from verification.firewall.verifier import PhysicsVerifier
+from verification.opendss.circuit import load_pin
 from verification.powerflow.solver import PowerFlowSolver
 from verification.types import (
     BreakerCommand,
@@ -102,117 +103,107 @@ class VerifyResponse(BaseModel):
 
 PRESETS: dict[str, dict[str, Any]] = {
     # -------------------------------------------------------------------------
-    # 3 APPROVED (SAFE) ACTIONS
+    # 3 APPROVED (SAFE) ACTIONS -- northern-islands-v1 bus and generator names
     # -------------------------------------------------------------------------
     "nominal_safe": {
-        "title": "1. Nominal S1 Reactive Shed (Approved)",
-        "description": "Routine minor load shed on Island 3 to stabilize small voltage drift.",
+        "title": "1. Nominal S1 Feeder Shed (Approved)",
+        "description": "Routine minor load shed on Nainativu's non-critical feeder group F2.",
         "payload": {
             "action_id": "act-001-nominal-safe",
             "origin": "SYSTEM1",
             "rationale": "S1 reactive shed vuln=0.14",
             "breakers": [],
-            "load_shed": [{"node_id": "N8", "shed_fraction": 0.1117, "priority_tier": 3}],
+            "load_shed": [{"node_id": "NAI_F2", "shed_fraction": 0.1117, "priority_tier": 3}],
             "dispatch": [],
         },
     },
     "cyclone_survival": {
         "title": "2. Cyclone Ditwah Survival Dispatch (Approved)",
         "description": (
-            "System 2 closes critical tie-line, dispatches generator, sheds non-essential load."
+            "System 2 starts Eluvaitivu's backup genset and sheds non-critical feeders."
         ),
         "payload": {
             "action_id": "act-002-cyclone-survival",
             "origin": "SYSTEM2",
             "rationale": "S2 survival opt vuln=0.63 protect-tier1",
-            "breakers": [{"edge_id": "E_crit_1", "closed": True}],
+            "breakers": [],
             "load_shed": [
-                {"node_id": "N11", "shed_fraction": 0.25, "priority_tier": 3},
-                {"node_id": "N8", "shed_fraction": 0.0983, "priority_tier": 3},
+                {"node_id": "ELU_F2", "shed_fraction": 0.25, "priority_tier": 3},
+                {"node_id": "DEL_F2", "shed_fraction": 0.0983, "priority_tier": 3},
             ],
-            "dispatch": [{"node_id": "N4", "p_kw": 147.37, "q_kvar": 10.0}],
+            "dispatch": [{"node_id": "ELU_HYB_DG", "p_kw": 20.0, "q_kvar": 10.0}],
         },
     },
     "peak_power_sharing": {
-        "title": "3. Peak Emergency Power-Sharing (Approved)",
+        "title": "3. Peak Standby Genset Dispatch (Approved)",
         "description": (
-            "System 2 coordinates multi-island power-sharing during peak cyclone storm intensity."
+            "System 2 brings Nainativu's and Delft's standby gensets on during the evening peak."
         ),
         "payload": {
             "action_id": "act-003-peak-sharing",
             "origin": "SYSTEM2",
             "rationale": "S2 survival opt vuln=0.88 protect-tier1",
-            "breakers": [{"edge_id": "E_crit_1", "closed": True}],
-            "load_shed": [
-                {"node_id": "N8", "shed_fraction": 0.25, "priority_tier": 3},
-                {"node_id": "N12", "shed_fraction": 0.2325, "priority_tier": 3},
+            "breakers": [],
+            "load_shed": [{"node_id": "DEL_F2", "shed_fraction": 0.2325, "priority_tier": 3}],
+            "dispatch": [
+                {"node_id": "NAI_DG2", "p_kw": 120.0, "q_kvar": 40.0},
+                {"node_id": "DEL_DG2", "p_kw": 100.0, "q_kvar": 30.0},
             ],
-            "dispatch": [{"node_id": "N4", "p_kw": 184.21, "q_kvar": 10.0}],
         },
     },
     # -------------------------------------------------------------------------
     # 3 REJECTED (UNSAFE) ACTIONS
     # -------------------------------------------------------------------------
     "unsafe_undervolt": {
-        "title": "4. Tie-Line Trip Island Collapse (Rejected)",
+        "title": "4. Battery Fast-Charge Voltage Collapse (Rejected)",
         "description": (
-            "Trips inter-island connection while local generation is zeroed, "
-            "triggering undervoltage."
+            "Charging Eluvaitivu's battery at full rating pulls 72 kW down 0.7 km of 400 V "
+            "cable, dragging the hybrid bus below 0.95 pu."
         ),
         "payload": {
             "action_id": "act-004-unsafe-undervolt",
             "origin": "SYSTEM2",
-            "rationale": "Aggressive island isolation without backup generation",
-            "breakers": [
-                {"edge_id": "Line_2_3", "closed": False},
-                {"edge_id": "E_crit_1", "closed": False},
-            ],
+            "rationale": "Aggressive battery recharge before the storm",
+            "breakers": [],
             "load_shed": [],
-            "dispatch": [
-                {"node_id": "N8", "p_kw": 0.0, "q_kvar": 0.0},
-                {"node_id": "N9", "p_kw": 0.0, "q_kvar": 0.0},
-            ],
+            "dispatch": [{"node_id": "ELU_HYB_BESS", "p_kw": -72.0, "q_kvar": 0.0}],
         },
     },
     "unsafe_overvolt": {
-        "title": "5. Reactive Over-Injection (Rejected)",
+        "title": "5. Battery Export Over-Voltage (Rejected)",
         "description": (
-            "Excessive reactive power injection drives bus voltages beyond 1.05 pu limit."
+            "Exporting the battery at full rating into a lightly loaded feeder lifts the hybrid "
+            "bus above 1.05 pu."
         ),
         "payload": {
             "action_id": "act-005-unsafe-overvolt",
             "origin": "SYSTEM2",
-            "rationale": "Uncompensated voltage support attempt",
+            "rationale": "Uncompensated battery export",
             "breakers": [],
             "load_shed": [],
-            "dispatch": [{"node_id": "N1", "p_kw": 500.0, "q_kvar": 6000.0}],
+            "dispatch": [{"node_id": "ELU_HYB_BESS", "p_kw": 72.0, "q_kvar": 0.0}],
         },
     },
     "unsafe_overload": {
-        "title": "6. Cable Thermal Overload (Rejected)",
-        "description": "High active power dispatch exceeds subsea cable thermal ampacity limit.",
+        "title": "6. Hybrid Link Thermal Overload (Rejected)",
+        "description": "Running every hybrid unit at once exceeds the 125 A hybrid link rating.",
         "payload": {
             "action_id": "act-006-unsafe-overload",
             "origin": "SYSTEM2",
-            "rationale": "Excessive export beyond subsea cable rating",
+            "rationale": "Hybrid plant flat out",
             "breakers": [],
             "load_shed": [],
-            "dispatch": [{"node_id": "N8", "p_kw": 6000.0, "q_kvar": 500.0}],
+            "dispatch": [{"node_id": "ELU_HYB", "p_kw": 140.0, "q_kvar": 0.0}],
         },
     },
 }
 
+_BUS_ISLAND: dict[str, str] = {b["node_id"].upper(): b["island"] for b in load_pin()["buses"]}
+
 
 def _classify_bus_island(bus_name: str) -> str:
-    """Classifies bus according to delft_3island.dss topological node clusters."""
-    name = bus_name.upper()
-    if name in ("SOURCEBUS", "N1", "N2", "N3"):
-        return "Nainativu Island (Grid 1)"
-    if name in ("N4", "N5", "N6"):
-        return "Analaitivu Island (Grid 2)"
-    if name in ("N8", "N9", "N11", "N12"):
-        return "Delft Island (Grid 3)"
-    return "Inter-Island Tie"
+    """The island a bus belongs to, from the northern-islands-v1 topology pin."""
+    return _BUS_ISLAND.get(bus_name.upper(), "Unknown")
 
 
 @router.get("/presets")

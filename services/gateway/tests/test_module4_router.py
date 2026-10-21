@@ -34,8 +34,9 @@ async def test_module4_3_approved_actions() -> None:
         assert "verified safe" in res.causal_log.text
         # Verify non-flat live solved bus voltages
         assert all(0.95 <= b.voltage_pu <= 1.05 for b in res.buses)
-        assert any(b.island == "Nainativu Island (Grid 1)" for b in res.buses)
-        assert any(b.island == "Delft Island (Grid 3)" for b in res.buses)
+        assert any(b.island == "Nainativu" for b in res.buses)
+        assert any(b.island == "Delft-Neduntivu" for b in res.buses)
+        assert all(b.island != "Unknown" for b in res.buses)
 
 
 @pytest.mark.anyio
@@ -56,7 +57,8 @@ async def test_module4_3_rejected_actions() -> None:
 
     req_undervolt = VerifyRequest(**presets["unsafe_undervolt"]["payload"])
     res_undervolt = await verify_action(req_undervolt)
-    assert any(
-        line.line_name.upper() in ("LINE_2_3", "E_CRIT_1") and not line.is_closed
-        for line in res_undervolt.lines
-    )
+    assert any(b.status == "UNDERVOLTAGE" and b.bus_name == "ELU_HYB" for b in res_undervolt.buses)
+
+    req_overload = VerifyRequest(**presets["unsafe_overload"]["payload"])
+    res_overload = await verify_action(req_overload)
+    assert any(line.status == "OVERLOAD" for line in res_overload.lines)
