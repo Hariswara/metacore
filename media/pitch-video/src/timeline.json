@@ -1,0 +1,304 @@
+{
+ "fps": 30,
+ "total": 3538,
+ "scenes": [
+  {
+   "id": 1,
+   "from": 0,
+   "dur": 120,
+   "phrases": []
+  },
+  {
+   "id": 2,
+   "from": 120,
+   "dur": 175,
+   "phrases": [
+    {
+     "f": 21,
+     "d": 58,
+     "text": "Late November 2025."
+    },
+    {
+     "f": 89,
+     "d": 56,
+     "text": "Cyclone Ditwah crosses Sri Lanka."
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "from": 295,
+   "dur": 369,
+   "phrases": [
+    {
+     "f": 9,
+     "d": 88,
+     "text": "Off the Jaffna coast, four islands make their own power."
+    },
+    {
+     "f": 109,
+     "d": 17,
+     "text": "Delft."
+    },
+    {
+     "f": 137,
+     "d": 23,
+     "text": "Nainativu."
+    },
+    {
+     "f": 171,
+     "d": 24,
+     "text": "Analaitivu."
+    },
+    {
+     "f": 205,
+     "d": 27,
+     "text": "Eluvaitivu."
+    },
+    {
+     "f": 247,
+     "d": 43,
+     "text": "No cable to the mainland."
+    },
+    {
+     "f": 298,
+     "d": 56,
+     "text": "Only diesel, shipped in by sea."
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "from": 664,
+   "dur": 486,
+   "phrases": [
+    {
+     "f": 6,
+     "d": 118,
+     "text": "Around 9,000 people live here, with a hospital and a water plant."
+    },
+    {
+     "f": 136,
+     "d": 160,
+     "text": "In 2025 these grids burned 975,615 litres of diesel,"
+    },
+    {
+     "f": 300,
+     "d": 66,
+     "text": "for 2.95 GWh,"
+    },
+    {
+     "f": 373,
+     "d": 92,
+     "text": "at LKR 94\u2013118 per unit."
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "from": 1150,
+   "dur": 218,
+   "phrases": [
+    {
+     "f": 6,
+     "d": 77,
+     "text": "In a storm like this, operators are evacuated."
+    },
+    {
+     "f": 98,
+     "d": 32,
+     "text": "Telemetry fails."
+    },
+    {
+     "f": 142,
+     "d": 58,
+     "text": "The grid has to decide on its own."
+    }
+   ]
+  },
+  {
+   "id": 6,
+   "from": 1368,
+   "dur": 315,
+   "phrases": [
+    {
+     "f": 6,
+     "d": 171,
+     "text": "Hand that decision to an ordinary AI, and one confident mistake can cascade into a blackout."
+    },
+    {
+     "f": 219,
+     "d": 81,
+     "text": "So we asked: what if the AI knew when it didn't know?"
+    }
+   ]
+  },
+  {
+   "id": 7,
+   "from": 1683,
+   "dur": 92,
+   "phrases": [
+    {
+     "f": 27,
+     "d": 32,
+     "text": "This is MetaCore."
+    }
+   ]
+  },
+  {
+   "id": 8,
+   "from": 1775,
+   "dur": 336,
+   "phrases": [
+    {
+     "f": 6,
+     "d": 112,
+     "text": "It sees the grid as a living graph of weather, load and generation."
+    },
+    {
+     "f": 130,
+     "d": 49,
+     "text": "It measures its own uncertainty."
+    },
+    {
+     "f": 188,
+     "d": 59,
+     "text": "When the answer is clear, it acts fast."
+    },
+    {
+     "f": 254,
+     "d": 66,
+     "text": "When it isn't, it slows down and reasons."
+    }
+   ]
+  },
+  {
+   "id": 9,
+   "from": 2111,
+   "dur": 721,
+   "phrases": [
+    {
+     "f": 6,
+     "d": 208,
+     "text": "Then, before any action touches the grid, a deterministic physics firewall runs a full power flow on a digital twin."
+    },
+    {
+     "f": 229,
+     "d": 22,
+     "text": "Voltage."
+    },
+    {
+     "f": 260,
+     "d": 26,
+     "text": "Line loading."
+    },
+    {
+     "f": 295,
+     "d": 25,
+     "text": "Generation."
+    },
+    {
+     "f": 328,
+     "d": 26,
+     "text": "Convergence."
+    },
+    {
+     "f": 369,
+     "d": 46,
+     "text": "Every action gets a verdict."
+    },
+    {
+     "f": 424,
+     "d": 20,
+     "text": "Approve."
+    },
+    {
+     "f": 456,
+     "d": 21,
+     "text": "Reject."
+    },
+    {
+     "f": 490,
+     "d": 67,
+     "text": "Or unverified, with its risk attached."
+    },
+    {
+     "f": 572,
+     "d": 135,
+     "text": "Nothing executes without approval, and every rejection teaches the agent why."
+    }
+   ]
+  },
+  {
+   "id": 10,
+   "from": 2832,
+   "dur": 256,
+   "phrases": [
+    {
+     "f": 21,
+     "d": 56,
+     "text": "Same storm. Same proposal."
+    },
+    {
+     "f": 88,
+     "d": 45,
+     "text": "This time the doubt is caught,"
+    },
+    {
+     "f": 140,
+     "d": 49,
+     "text": "the unsafe action is blocked,"
+    },
+    {
+     "f": 196,
+     "d": 33,
+     "text": "and the lights stay on."
+    }
+   ]
+  },
+  {
+   "id": 11,
+   "from": 3088,
+   "dur": 249,
+   "phrases": [
+    {
+     "f": 6,
+     "d": 53,
+     "text": "For the Ceylon Electricity Board."
+    },
+    {
+     "f": 66,
+     "d": 41,
+     "text": "For the island communities."
+    },
+    {
+     "f": 118,
+     "d": 113,
+     "text": "For every remote and coastal microgrid that cannot afford a guess."
+    }
+   ]
+  },
+  {
+   "id": 12,
+   "from": 3337,
+   "dur": 201,
+   "phrases": [
+    {
+     "f": 12,
+     "d": 23,
+     "text": "MetaCore."
+    },
+    {
+     "f": 47,
+     "d": 40,
+     "text": "It knows when it doesn't know."
+    },
+    {
+     "f": 95,
+     "d": 52,
+     "text": "And it verifies before it acts."
+    }
+   ]
+  }
+ ]
+}
