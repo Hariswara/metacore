@@ -67,6 +67,7 @@ class CertifierConfig:
     pid: str = "auto"  # "auto" (storm mode only), "on", "off"
     seed: int | None = None  # None -> the calibration artifact's seed
     band_scale: float = 1.0  # sensitivity analysis (E5): scale both band edges
+    situation_blind: bool = False  # baseline B2: one band and one row pool for every hour
     early_stopping: bool = True
     attribution: bool = True  # Shapley shares over the feeder players when k > 0
 
@@ -150,9 +151,9 @@ class RiskCertifiedVerifier:
 
         cal = self.calibration
         notes: list[str] = []
-        situation, band, static, pid_json = self._band(timestamp, hazard_level, notes)
+        situation, band, calibrated, pid_json = self._band(timestamp, hazard_level, notes)
         scenarios = draw_scenarios(cal, band, self.config.planned(), self.config.seed,
-                                   static_band=static if band is not static else None)
+                                   static_band=calibrated if band != calibrated else None)
 
         # Re-apply the snapshot and the action once; scenarios then only move the loads.
         self._prepare(action, snapshot)
@@ -244,29 +245,37 @@ class RiskCertifiedVerifier:
         if hazard_level is None:
             notes.append("hazard tag missing for this hour: band looked up without hazard")
         situation = Situation.at(timestamp, hazard_level)
-        static = cal.band_for(situation)
+        # ``calibrated`` is the frozen band the rows were drawn under; ``static`` is the band this
+        # call uses before PID (they differ only in the band-width sensitivity analysis, E5).
+        # The scenario draws are rescaled from one to the other, so a wider band really spreads
+        # the scenarios instead of only moving the corner rows.
+        calibrated = (cal.bands["all"] if self.config.situation_blind
+                      else cal.band_for(situation))
+        static = calibrated
         if self.config.band_scale != 1.0:
-            static = Band(static.key, static.n, static.q_up * self.config.band_scale,
-                          min(1.0, static.q_down * self.config.band_scale), static.alpha)
-        if static.key != situation.keys()[0]:
+            static = Band(f"{calibrated.key}x{self.config.band_scale:g}", calibrated.n,
+                          calibrated.q_up * self.config.band_scale,
+                          min(1.0, calibrated.q_down * self.config.band_scale), calibrated.alpha)
+        if not self.config.situation_blind and calibrated.key != situation.keys()[0]:
             notes.append(f"situation group {situation.keys()[0]!r} too thin: "
-                         f"fell back to {static.key!r}")
+                         f"fell back to {calibrated.key!r}")
 
-        mode = self.config.pid
+        mode = "off" if self.config.situation_blind else self.config.pid
         if mode == "off":
-            return situation, static, static, None
+            return situation, static, calibrated, None
         if hist is None or timestamp not in hist.timestamps:
             notes.append("conformal PID needs the replayed history; static band used")
-            return situation, static, static, None
+            return situation, static, calibrated, None
         storm = in_storm(hist, hist.index(timestamp))
         if mode == "auto" and not storm:
-            return situation, static, static, {"enabled": False, "storm": False}
+            return situation, static, calibrated, {"enabled": False, "storm": False}
         adapted, state = replay_pid(cal, hist, timestamp)
         if self.config.band_scale != 1.0:
             adapted = static.widened(state.extra, "+pid")
         notes.append("storm mode: band adapted by conformal PID" if storm
                      else "conformal PID forced on")
-        return situation, adapted, static, {"enabled": True, "storm": storm, **state.to_json()}
+        return situation, adapted, calibrated, {"enabled": True, "storm": storm,
+                                                **state.to_json()}
 
     def _prepare(self, action: ProposedControlAction, snapshot: dict | None) -> None:
         self.circuit.reset_to_base()

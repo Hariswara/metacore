@@ -152,3 +152,15 @@ def test_latency_of_688_scenarios() -> None:
     p95 = times[int(0.95 * (len(times) - 1))]
     print(f"\n[M4 RCV] 688 scenarios: p50 {statistics.median(times):.0f} ms | p95 {p95:.0f} ms")
     assert p95 < 5000.0
+
+
+def test_a_wider_band_spreads_the_scenarios_not_only_the_corners() -> None:
+    """E5's lever: band_scale must change what the scenarios contain."""
+    snap = sample("calm")
+    action = ProposedControlAction(
+        action_id="bess-export-25",
+        dispatch=[DispatchSetpoint(node_id="ELU_HYB_BESS", p_kw=25.0, q_kvar=10.0)])
+    base = rcv().verify(action, snapshot=snap).certificate
+    wide = rcv(band_scale=2.0).verify(action, snapshot=snap).certificate
+    assert wide.band["key"].endswith("x2")
+    assert wide.n_failures > base.n_failures
