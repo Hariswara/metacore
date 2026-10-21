@@ -430,6 +430,10 @@ export default function VerificationRoute() {
                     </span>
                   </div>
                 </div>
+                <p className="verification__caveat" data-testid="risk-caveat">
+                  This risk rests on hourly demand downscaled from CEB monthly totals, not metered load: its misses are smoother
+                  than real ones, so the bands may understate sudden swings.
+                </p>
                 {c.notes.length > 0 && (
                   <ul className="verification__notes">
                     {c.notes.map((n) => (

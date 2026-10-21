@@ -63,6 +63,8 @@ M4 becomes a **risk-certified safety shield** (runtime assurance, Simplex patter
   answers UNVERIFIED; the plain gate is still available as `PhysicsVerifier`.
 - M3's committed sample stream still names the retired `delft_3island` buses, so on the shared
   model its actions are REJECTed as malformed until M3 adopts the new names.
+  `delft_3island.dss` stays at its old path, marked retired, only as M3's frozen training
+  topology for its drift test; M4 never compiles it.
 - Rebuilding the calibration is one command and must be byte-identical:
   `python -m verification.calibrate check` runs in the core test lane.
 - Stated limitations: demand is downscaled from monthly totals (misses are smoother than real

@@ -141,4 +141,5 @@ def _root_of(path: Path) -> Path | None:
 
 def _rel(path: Path, root: Path | None) -> str:
     p = Path(path).resolve()
-    return str(p.relative_to(root)) if root and p.is_relative_to(root) else p.name
+    # POSIX separators so the sealed artifact is byte-identical on every OS, Windows included.
+    return p.relative_to(root).as_posix() if root and p.is_relative_to(root) else p.name

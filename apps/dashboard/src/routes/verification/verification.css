@@ -567,6 +567,12 @@
   overflow-wrap: anywhere;
 }
 
+.verification__caveat {
+  margin: 1rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
 .verification__notes {
   margin: 1rem 0 0;
   padding-left: 1.1rem;

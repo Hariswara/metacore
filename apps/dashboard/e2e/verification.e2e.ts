@@ -48,6 +48,7 @@ test("the Ditwah evening runs conformal PID in storm mode", async ({ page }) => 
   await expect(page.getByTestId("verdict")).toHaveText("APPROVE");
   await expect(page.getByTestId("pid-state")).toContainText("on (storm)");
   await expect(page.getByTestId("risk-card")).toContainText(/SEVERE|EXTREME/);
+  await expect(page.getByTestId("risk-caveat")).toContainText("downscaled from CEB monthly totals");
 
   await page.getByTestId("pid-select").selectOption("off");
   await waitForVerdict(page);
