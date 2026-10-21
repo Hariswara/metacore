@@ -63,8 +63,20 @@ class Band:
                     min(1.0, max(0.0, self.q_down + extra)), self.alpha)
 
     def to_json(self) -> dict:
-        return {"key": self.key, "n": self.n, "q_up": round(self.q_up, 4),
-                "q_down": round(self.q_down, 4)}
+        """JSON form; an unbounded edge (too few rows) is written as null, not Infinity."""
+        return {"key": self.key, "n": self.n, "q_up": _edge(self.q_up),
+                "q_down": _edge(self.q_down)}
+
+    @classmethod
+    def from_json(cls, g: dict, alpha: float = ALPHA) -> Band:
+        def edge(x: float | None) -> float:
+            return math.inf if x is None else float(x)
+
+        return cls(g["key"], int(g["n"]), edge(g["q_up"]), edge(g["q_down"]), alpha)
+
+
+def _edge(q: float) -> float | None:
+    return None if math.isinf(q) else round(q, 4)
 
 
 def build_band(key: str, s_up: np.ndarray, s_down: np.ndarray, alpha: float = ALPHA) -> Band:

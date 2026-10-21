@@ -76,3 +76,80 @@ def test_real_calibration_split_row_count() -> None:
     assert len(table) == hours - 6
     assert table.up.shape == table.down.shape == (hours - 6, 4)
     assert np.all(table.up >= table.down)
+
+
+# ------------------------------------------------------------------------------- C7: the artifact
+
+def test_rebuilding_from_the_same_history_is_byte_identical() -> None:
+    from verification.calibrate.build import build_artifact, render
+    from verification.risk.calibration import DEFAULT_ARTIFACT
+    from verification.risk.history import default_paths
+
+    paths = default_paths()
+    first = render(build_artifact(paths["hourly_load"], paths["meteorology"]))
+    second = render(build_artifact(paths["hourly_load"], paths["meteorology"]))
+    assert first == second
+    # ...and identical to the committed artifact (what `calibrate check` asserts in CI)
+    assert first == DEFAULT_ARTIFACT.read_text()
+
+
+def test_the_artifact_records_provenance_and_loads() -> None:
+    from verification.risk.calibration import Calibration
+
+    cal = Calibration.load()
+    assert cal.raw["schema"] == "m4-calibration/1"
+    assert cal.raw["splits"]["calibration"] == ["2024-01-01T00:00", "2025-06-30T23:00"]
+    assert cal.islands == ("Analaitivu", "Delft-Neduntivu", "Eluvaitivu", "Nainativu")
+    assert len(cal.row_timestamps) == cal.up.shape[0] == cal.raw["rows"]["count"]
+    assert cal.row_timestamps[-1] == "2025-06-30T17:00"  # last start whose window fits
+    assert cal.seed == 20251128 and cal.horizon_h == 6
+
+
+def test_stored_bands_match_their_rows() -> None:
+    from verification.risk.bands import build_band, row_scores
+    from verification.risk.calibration import Calibration
+
+    cal = Calibration.load()
+    s_up, s_down = row_scores(cal.up, cal.down)
+    for key in ("h19|NE_MONSOON|CALM", "h03", "all"):
+        idx = cal.rows_in(key)
+        again = build_band(key, s_up[idx], s_down[idx], cal.alpha)
+        assert again.n == cal.bands[key].n
+        assert again.q_up == pytest.approx(cal.bands[key].q_up, abs=1e-4)
+        assert again.q_down == pytest.approx(cal.bands[key].q_down, abs=1e-4)
+
+
+def test_a_changed_input_makes_the_artifact_stale(tmp_path: Path) -> None:
+    from verification.risk.calibration import Calibration, StaleCalibrationError
+    from verification.risk.history import default_paths
+
+    paths = default_paths()
+    cal = Calibration.load()
+    cal.check_inputs(paths["hourly_load"], paths["meteorology"])  # the real inputs match
+
+    lines = HOURLY.read_text().splitlines()
+    island, ts, kw, quality = lines[1].split(",")
+    lines[1] = ",".join([island, ts, str(float(kw) + 0.001), quality])
+    changed = tmp_path / "island_load_hourly.csv"
+    changed.write_text("\n".join(lines) + "\n")
+    with pytest.raises(StaleCalibrationError):
+        cal.check_inputs(changed, paths["meteorology"])
+
+
+def test_a_hand_edited_artifact_is_refused(tmp_path: Path) -> None:
+    import json
+
+    from verification.risk.calibration import DEFAULT_ARTIFACT, Calibration, StaleCalibrationError
+
+    raw = json.loads(DEFAULT_ARTIFACT.read_text())
+    raw["groups"]["h19|NE_MONSOON|CALM"]["q_up"] = 0.01  # a narrower band would approve more
+    edited = tmp_path / "calibration_v1.json"
+    edited.write_text(json.dumps(raw))
+    with pytest.raises(StaleCalibrationError):
+        Calibration.load(edited)
+
+
+def test_the_check_cli_passes_on_the_committed_artifact() -> None:
+    from verification.calibrate.__main__ import main
+
+    assert main(["check"]) == 0
