@@ -78,3 +78,7 @@ reports/**/test_predictions_*.npz
 # M4's frozen calibration (bands, miss rows, input hashes), ~650 KB. The verifier reads it on
 # every call and `python -m verification.calibrate check` asserts it rebuilds byte-identically.
 !deterministic-core/module4_verification/src/verification/artifacts/calibration_v1.json
+
+# Playwright run output (apps/dashboard: pnpm test:e2e)
+apps/dashboard/test-results/
+apps/dashboard/playwright-report/
