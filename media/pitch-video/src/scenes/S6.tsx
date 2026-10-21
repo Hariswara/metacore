@@ -13,7 +13,7 @@ export const S6: React.FC = () => {
   const f = useCurrentFrame();
   const dur = sceneDur(6);
   const p0 = ph(6, 0), e0 = phEnd(6, 0), p1 = ph(6, 1);
-  const exec = p0 + 74;
+  const exec = Math.max(p0 + 74, e0 - 95);
   const f2On = ramp(f, exec, exec + 6);
   const stress = ramp(f, exec + 18, exec + 24);
   const dark = ramp(f, exec + 70, exec + 80);

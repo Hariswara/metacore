@@ -1,145 +1,145 @@
 {
  "fps": 30,
- "total": 3538,
+ "total": 3579,
  "scenes": [
   {
    "id": 1,
    "from": 0,
-   "dur": 120,
+   "dur": 96,
    "phrases": []
   },
   {
    "id": 2,
-   "from": 120,
+   "from": 96,
    "dur": 175,
    "phrases": [
     {
-     "f": 21,
-     "d": 58,
-     "text": "Late November 2025."
+     "f": 13,
+     "d": 60,
+     "text": "November, 2025."
     },
     {
-     "f": 89,
-     "d": 56,
-     "text": "Cyclone Ditwah crosses Sri Lanka."
+     "f": 79,
+     "d": 77,
+     "text": "Cyclone Ditwah tears across Sri Lanka."
     }
    ]
   },
   {
    "id": 3,
-   "from": 295,
-   "dur": 369,
+   "from": 271,
+   "dur": 394,
    "phrases": [
     {
-     "f": 9,
-     "d": 88,
-     "text": "Off the Jaffna coast, four islands make their own power."
+     "f": 6,
+     "d": 129,
+     "text": "Now look north. Off the Jaffna coast, four islands keep their own lights on."
     },
     {
-     "f": 109,
-     "d": 17,
+     "f": 142,
+     "d": 19,
      "text": "Delft."
     },
     {
-     "f": 137,
-     "d": 23,
+     "f": 167,
+     "d": 28,
      "text": "Nainativu."
     },
     {
-     "f": 171,
-     "d": 24,
+     "f": 201,
+     "d": 29,
      "text": "Analaitivu."
     },
     {
-     "f": 205,
-     "d": 27,
+     "f": 236,
+     "d": 29,
      "text": "Eluvaitivu."
     },
     {
-     "f": 247,
+     "f": 273,
      "d": 43,
      "text": "No cable to the mainland."
     },
     {
-     "f": 298,
-     "d": 56,
-     "text": "Only diesel, shipped in by sea."
+     "f": 323,
+     "d": 62,
+     "text": "Every drop of fuel arrives by boat."
     }
    ]
   },
   {
    "id": 4,
-   "from": 664,
-   "dur": 486,
+   "from": 665,
+   "dur": 423,
    "phrases": [
     {
-     "f": 6,
-     "d": 118,
-     "text": "Around 9,000 people live here, with a hospital and a water plant."
+     "f": 4,
+     "d": 117,
+     "text": "Around 9,000 people live here. A hospital. A water plant."
     },
     {
-     "f": 136,
-     "d": 160,
-     "text": "In 2025 these grids burned 975,615 litres of diesel,"
+     "f": 129,
+     "d": 139,
+     "text": "Last year, these grids burned 975,000 litres of diesel,"
     },
     {
-     "f": 300,
-     "d": 66,
-     "text": "for 2.95 GWh,"
+     "f": 271,
+     "d": 60,
+     "text": "for nearly three gigawatt-hours"
     },
     {
-     "f": 373,
-     "d": 92,
-     "text": "at LKR 94\u2013118 per unit."
+     "f": 335,
+     "d": 75,
+     "text": "at up to 118 rupees a unit."
     }
    ]
   },
   {
    "id": 5,
-   "from": 1150,
-   "dur": 218,
+   "from": 1088,
+   "dur": 245,
    "phrases": [
     {
-     "f": 6,
-     "d": 77,
-     "text": "In a storm like this, operators are evacuated."
+     "f": 4,
+     "d": 105,
+     "text": "Now imagine the storm hits. The operators are evacuated."
     },
     {
-     "f": 98,
-     "d": 32,
-     "text": "Telemetry fails."
+     "f": 117,
+     "d": 35,
+     "text": "The data goes dark."
     },
     {
-     "f": 142,
-     "d": 58,
-     "text": "The grid has to decide on its own."
+     "f": 159,
+     "d": 75,
+     "text": "And the grid has to decide on its own."
     }
    ]
   },
   {
    "id": 6,
-   "from": 1368,
-   "dur": 315,
+   "from": 1333,
+   "dur": 420,
    "phrases": [
     {
-     "f": 6,
-     "d": 171,
-     "text": "Hand that decision to an ordinary AI, and one confident mistake can cascade into a blackout."
+     "f": 4,
+     "d": 250,
+     "text": "Hand that call to an ordinary AI, and it answers with total confidence. Even when it's wrong. One bad call, and the whole island goes black."
     },
     {
-     "f": 219,
-     "d": 81,
-     "text": "So we asked: what if the AI knew when it didn't know?"
+     "f": 287,
+     "d": 125,
+     "text": "So we asked a different question. What if the AI knew when it didn't know?"
     }
    ]
   },
   {
    "id": 7,
-   "from": 1683,
-   "dur": 92,
+   "from": 1753,
+   "dur": 70,
    "phrases": [
     {
-     "f": 27,
+     "f": 17,
      "d": 32,
      "text": "This is MetaCore."
     }
@@ -147,156 +147,156 @@
   },
   {
    "id": 8,
-   "from": 1775,
-   "dur": 336,
+   "from": 1823,
+   "dur": 345,
    "phrases": [
     {
-     "f": 6,
-     "d": 112,
-     "text": "It sees the grid as a living graph of weather, load and generation."
+     "f": 4,
+     "d": 113,
+     "text": "It reads the grid as a living graph of weather, load and generation."
     },
     {
-     "f": 130,
-     "d": 49,
-     "text": "It measures its own uncertainty."
+     "f": 124,
+     "d": 47,
+     "text": "It measures its own doubt."
     },
     {
-     "f": 188,
-     "d": 59,
+     "f": 177,
+     "d": 71,
      "text": "When the answer is clear, it acts fast."
     },
     {
-     "f": 254,
-     "d": 66,
-     "text": "When it isn't, it slows down and reasons."
+     "f": 253,
+     "d": 84,
+     "text": "When it isn't, it slows down, and thinks."
     }
    ]
   },
   {
    "id": 9,
-   "from": 2111,
-   "dur": 721,
+   "from": 2168,
+   "dur": 704,
    "phrases": [
     {
-     "f": 6,
-     "d": 208,
-     "text": "Then, before any action touches the grid, a deterministic physics firewall runs a full power flow on a digital twin."
+     "f": 4,
+     "d": 234,
+     "text": "And here's the part we're proudest of. Before any action touches the grid, a deterministic physics firewall replays it on a digital twin."
     },
     {
-     "f": 229,
-     "d": 22,
+     "f": 248,
+     "d": 23,
      "text": "Voltage."
     },
     {
-     "f": 260,
-     "d": 26,
+     "f": 276,
+     "d": 25,
      "text": "Line loading."
     },
     {
-     "f": 295,
+     "f": 306,
      "d": 25,
      "text": "Generation."
     },
     {
-     "f": 328,
-     "d": 26,
+     "f": 337,
+     "d": 25,
      "text": "Convergence."
     },
     {
-     "f": 369,
-     "d": 46,
+     "f": 370,
+     "d": 45,
      "text": "Every action gets a verdict."
     },
     {
-     "f": 424,
-     "d": 20,
+     "f": 421,
+     "d": 23,
      "text": "Approve."
     },
     {
-     "f": 456,
+     "f": 450,
      "d": 21,
      "text": "Reject."
     },
     {
-     "f": 490,
-     "d": 67,
+     "f": 479,
+     "d": 71,
      "text": "Or unverified, with its risk attached."
     },
     {
-     "f": 572,
-     "d": 135,
+     "f": 559,
+     "d": 136,
      "text": "Nothing executes without approval, and every rejection teaches the agent why."
     }
    ]
   },
   {
    "id": 10,
-   "from": 2832,
+   "from": 2872,
    "dur": 256,
    "phrases": [
     {
-     "f": 21,
-     "d": 56,
+     "f": 13,
+     "d": 66,
      "text": "Same storm. Same proposal."
     },
     {
-     "f": 88,
-     "d": 45,
-     "text": "This time the doubt is caught,"
+     "f": 85,
+     "d": 52,
+     "text": "This time, the doubt is caught."
     },
     {
-     "f": 140,
-     "d": 49,
-     "text": "the unsafe action is blocked,"
+     "f": 142,
+     "d": 50,
+     "text": "The unsafe action is blocked."
     },
     {
-     "f": 196,
-     "d": 33,
-     "text": "and the lights stay on."
+     "f": 199,
+     "d": 40,
+     "text": "And the lights stay on."
     }
    ]
   },
   {
    "id": 11,
-   "from": 3088,
-   "dur": 249,
+   "from": 3128,
+   "dur": 263,
    "phrases": [
     {
-     "f": 6,
-     "d": 53,
-     "text": "For the Ceylon Electricity Board."
+     "f": 4,
+     "d": 70,
+     "text": "We built this for the Ceylon Electricity Board."
     },
     {
-     "f": 66,
-     "d": 41,
-     "text": "For the island communities."
+     "f": 79,
+     "d": 47,
+     "text": "For the families on these islands."
     },
     {
-     "f": 118,
-     "d": 113,
-     "text": "For every remote and coastal microgrid that cannot afford a guess."
+     "f": 133,
+     "d": 119,
+     "text": "And for every remote, coastal grid that simply cannot afford a guess."
     }
    ]
   },
   {
    "id": 12,
-   "from": 3337,
-   "dur": 201,
+   "from": 3391,
+   "dur": 188,
    "phrases": [
     {
-     "f": 12,
+     "f": 8,
      "d": 23,
      "text": "MetaCore."
     },
     {
-     "f": 47,
-     "d": 40,
+     "f": 39,
+     "d": 45,
      "text": "It knows when it doesn't know."
     },
     {
-     "f": 95,
-     "d": 52,
-     "text": "And it verifies before it acts."
+     "f": 90,
+     "d": 64,
+     "text": "And it verifies, before it acts."
     }
    ]
   }

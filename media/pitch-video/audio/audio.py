@@ -32,7 +32,7 @@ def saw(f,d,det=0.0):
     return out
 # ---------- music ----------
 # intensity curve (0..1) over absolute time
-pts=[(0,0),(t0(2),0),(t0(2)+1,0.35),(t0(4),0.5),(t0(5),0.5),(t0(5)+0.4,0.15),(t0(6),0.25),(t0(6)+5,0.55),(ph(6,0)+(74+80)/30,0.0),(ph(6,1),0.15),(t0(7)+0.9,0.15),(t0(7)+0.95,1.0),(t0(10),0.9),(t0(10)+0.7,0.3),(ph(10,3),0.85),(t0(11),0.9),(t0(12)+3,0.9),(T-0.5,0.0),(T,0)]
+pts=[(0,0),(t0(2),0),(t0(2)+1,0.35),(t0(4),0.5),(t0(5),0.5),(t0(5)+0.4,0.15),(t0(6),0.25),(t0(6)+5,0.55),(max(ph(6,0)+74/30,phe(6,0)-95/30)+80/30,0.0),(ph(6,1),0.15),(t0(7)+0.9,0.15),(t0(7)+0.95,1.0),(t0(10),0.9),(t0(10)+0.7,0.3),(ph(10,3),0.85),(t0(11),0.9),(t0(12)+3,0.9),(T-0.5,0.0),(T,0)]
 xs,ys=zip(*pts); tg=np.arange(N)/SR; I=np.interp(tg,xs,ys)
 I=lp(I,3)  # smooth
 BPM=96; beat=60/BPM; bar=4*beat
@@ -89,10 +89,11 @@ def zip_(d=1.2):
     return s*np.sin(np.pi*t/d)
 def powerdown(d=1.5): t=tt(d); f=400*np.exp(-t/0.5)+30; return np.sin(2*np.pi*np.cumsum(f)/SR)*np.exp(-t/0.8)*0.3
 # S1 ECG beeps + hum + flatline
-for fr in [5.2,18,30.7,43.4]: add(sfx,t0(1)+fr/30,beep(1000,0.1,0.22))
+k1=sc[1]['dur']/120
+for fr in [5.2,18,30.7,43.4]: add(sfx,t0(1)+fr*k1/30,beep(1000,0.1,0.22))
 hum=tt(1.8); h=(np.sin(2*np.pi*50*hum)+0.5*np.sin(2*np.pi*100*hum)+0.25*np.sin(2*np.pi*150*hum))*0.12*np.minimum(1,hum/0.3)
-add(sfx,t0(1)+52/30,h)
-add(sfx,t0(1)+96/30,beep(1000,0.5,0.2))
+add(sfx,t0(1)+52*k1/30,h)
+add(sfx,t0(1)+96*k1/30,beep(1000,0.5,0.2))
 # S2 wind + boom
 wd=sc[2]['dur']/30; w=lp(rng.standard_normal(int(wd*SR)),700)*np.sin(np.pi*tt(wd)/wd)**1.5*0.5
 add(sfx,t0(2),np.stack([w,np.roll(w,800)],1)); add(sfx,t0(2)+0.1,hit(3.0),0.6)
@@ -110,7 +111,7 @@ add(sfx,ph(5,1)-0.05,static(0.9),1.0)
 p0=ph(6,0)
 for a in [4,22,40]:
     for k in range(14): add(sfx,p0+(a+k*0.9)/30,click(),0.7)
-ex=p0+74/30
+ex=max(p0+74/30, phe(6,0)-95/30)
 add(sfx,ex,stamp(),0.5)
 for k in range(6): add(sfx,ex+0.7+k*0.33,clunk(),0.7,pan=(-0.5+k*0.2))
 add(sfx,ex+70/30,powerdown(1.6),1.0)
@@ -136,7 +137,7 @@ add(sfx,t0(12)+0.2,beep(1000,0.08,0.16)); add(sfx,ph(12,0),hit(3.5),0.8); add(sf
 # ---------- mix ----------
 vo,vsr=sf.read('vo_full.wav',dtype='float64')
 vo=np.interp(np.arange(int(len(vo)*SR/vsr))/SR,np.arange(len(vo))/vsr,vo)
-V=np.zeros(N); V[:len(vo)]=vo[:N]
+V=np.zeros(N); V[:len(vo)]=vo[:N]*1.5
 # sidechain duck music under VO
 venv=lp(np.abs(V),4); duck=1-0.65*np.clip(venv/0.04,0,1)
 mix=music*duck[:,None]*0.24+sfx*0.6+np.stack([V,V],1)*1.0

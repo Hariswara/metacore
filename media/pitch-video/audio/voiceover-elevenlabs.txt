@@ -1,0 +1,21 @@
+[serious] November, twenty twenty-five. [short pause] Cyclone Ditwah tears across Sri Lanka.
+
+[calm] Now look north. [short pause] Off the Jaffna coast, four islands keep their own lights on. [short pause] Delft. Nainativu. Analaitivu. Eluvaitivu. [short pause] No cable to the mainland. Every drop of fuel arrives by boat.
+
+[serious] Around nine thousand people live here. A hospital. A water plant. [short pause] Last year, these grids burned nine hundred and seventy-five thousand litres of diesel, for nearly three gigawatt-hours [short pause] at up to one hundred and eighteen rupees a unit.
+
+[tense] Now imagine the storm hits. [short pause] The operators are evacuated. [whispers] The data goes dark. [short pause] [serious] And the grid has to decide... on its own.
+
+[serious] Hand that call to an ordinary AI, and it answers with total confidence. [short pause] Even when it's wrong. One bad call, and the whole island goes black. [long pause] [curious] So we asked a different question. What if the AI knew... when it didn't know?
+
+[confident] This is MetaCore.
+
+[confident] It reads the grid as a living graph of weather, load and generation. [short pause] It measures its own doubt. When the answer is clear, it acts fast. [short pause] When it isn't, it slows down, and thinks.
+
+[proudly] And here's the part we're proudest of. [short pause] [serious] Before any action touches the grid, a deterministic physics firewall replays it on a digital twin. Voltage. Line loading. Generation. Convergence. [short pause] Every action gets a verdict. Approve. Reject. Or unverified, with its risk attached. [short pause] Nothing executes without approval, and every rejection teaches the agent why.
+
+[calm] Same storm. Same proposal. [short pause] This time, the doubt is caught. The unsafe action is blocked. [warmly] And the lights stay on.
+
+[sincere] We built this for the Ceylon Electricity Board. For the families on these islands. And for every remote, coastal grid that simply cannot afford a guess.
+
+[confident] MetaCore. [short pause] It knows when it doesn't know. [short pause] And it verifies, before it acts.

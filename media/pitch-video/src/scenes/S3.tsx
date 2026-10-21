@@ -31,7 +31,7 @@ export const S3: React.FC = () => {
   return (
     <AbsoluteFill style={{background: '#050B14'}}>
       <AbsoluteFill style={{transform: `translate(220px, 70px) scale(${cam})`}}>
-        <LocalLand draw={ramp(f, 4, 70, inOut)} fill={ramp(f, 20, 70)} />
+        <LocalLand draw={ramp(f, 4, 70, inOut)} fill={ramp(f, 20, 70)} glow={false} />
         <svg width={W} height={H} style={{position: 'absolute'}}>
           {ISLANDS.map((isl, i) => {
             const at = ph(3, i + 1) - 3;
@@ -44,7 +44,7 @@ export const S3: React.FC = () => {
                 <line x1={x} y1={y} x2={lerp(x, mainland[0], link)} y2={lerp(y, mainland[1], link)} stroke={cut > 0 ? C.red : C.dim} strokeWidth={2} strokeDasharray="8 8" opacity={link * (1 - cut * 0.6)} />
                 {cut > 0 && (
                   <g transform={`translate(${lerp(x, mainland[0], 0.5)},${lerp(y, mainland[1], 0.5)}) scale(${cut})`}>
-                    <path d="M-12 -12 L12 12 M12 -12 L-12 12" stroke={C.red} strokeWidth={5} strokeLinecap="round" style={{filter: `drop-shadow(0 0 8px ${C.red})`}} />
+                    <path d="M-12 -12 L12 12 M12 -12 L-12 12" stroke={C.red} strokeWidth={5} strokeLinecap="round" />
                   </g>
                 )}
                 <Node x={x} y={y} r={9} color={C.cyan} pulse={o > 0.5 ? 1 : 0} o={o * lit} />

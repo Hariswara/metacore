@@ -1,9 +1,9 @@
 import {AbsoluteFill, useCurrentFrame, interpolate} from 'remotion';
-import {C, W, H, ecg, ramp, Mono, Decode, MONO, clamp} from '../lib';
+import {C, W, H, ecg, ramp, Mono, Decode, MONO, clamp, sceneDur} from '../lib';
 
 // Cold open: hospital ECG -> grid frequency -> flatline
 export const S1: React.FC = () => {
-  const f = useCurrentFrame();
+  const f = (useCurrentFrame() * 120) / sceneDur(1);
   const sweep = interpolate(f, [0, 52], [0, W + 40], clamp);
   const morph = ramp(f, 50, 72);               // ecg -> sine
   const kill = ramp(f, 86, 100);               // amplitude to 0

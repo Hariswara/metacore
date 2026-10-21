@@ -145,7 +145,8 @@ export const Node: React.FC<{x: number; y: number; r?: number; color?: string; p
     <g opacity={o}>
       <circle cx={x} cy={y} r={r * 4} fill={color} opacity={0.08} />
       {pulse > 0 && <circle cx={x} cy={y} r={r + ring * 50 * pulse} fill="none" stroke={color} strokeWidth={2} opacity={(1 - ring) * 0.7} />}
-      <circle cx={x} cy={y} r={r} fill={color} style={{filter: `drop-shadow(0 0 12px ${color})`}} />
+      <circle cx={x} cy={y} r={r * 2} fill={color} opacity={0.25} />
+      <circle cx={x} cy={y} r={r} fill={color} />
       <circle cx={x} cy={y} r={r * 0.45} fill="#fff" opacity={0.9} />
     </g>
   );
@@ -171,7 +172,8 @@ export const LocalLand: React.FC<{draw?: number; fill?: number; stroke?: string;
       <filter id="glow"><feGaussianBlur stdDeviation="4" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
     </defs>
     <path d={geo.local.path} fill={`rgba(52,225,255,${0.06 * fill})`} stroke="none" />
-    <path d={geo.local.path} fill="none" stroke={stroke} strokeWidth={1.6} pathLength={1} strokeDasharray="1 1" strokeDashoffset={1 - draw} opacity={0.85} filter={glow ? 'url(#glow)' : undefined} />
+    {glow && <path d={geo.local.path} fill="none" stroke={stroke} strokeWidth={7} pathLength={1} strokeDasharray="1 1" strokeDashoffset={1 - draw} opacity={0.18} />}
+    <path d={geo.local.path} fill="none" stroke={stroke} strokeWidth={1.6} pathLength={1} strokeDasharray="1 1" strokeDashoffset={1 - draw} opacity={0.9} />
   </svg>
 );
 

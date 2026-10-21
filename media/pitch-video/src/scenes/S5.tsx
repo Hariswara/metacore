@@ -1,5 +1,5 @@
 import {AbsoluteFill, useCurrentFrame} from 'remotion';
-import {C, W, H, ramp, inOut, lerp, Mono, ph, sceneDur, Glitch, Reveal, Backdrop, ecg} from '../lib';
+import {C, W, H, ramp, inOut, lerp, Mono, ph, phEnd, sceneDur, Glitch, Reveal, Backdrop, ecg} from '../lib';
 
 const rnd = (i: number) => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 
@@ -24,7 +24,8 @@ const Monitor: React.FC<{x: number; y: number; w: number; h: number; dead: numbe
 export const S5: React.FC = () => {
   const f = useCurrentFrame();
   const dur = sceneDur(5);
-  const gone = ramp(f, ph(5, 0) + 34, ph(5, 0) + 80, inOut);
+  const evac = Math.round((ph(5, 0) + phEnd(5, 0)) / 2);
+  const gone = ramp(f, evac, evac + 45, inOut);
   const dead = ramp(f, ph(5, 1) - 2, ph(5, 1) + 6);
   const zoom = lerp(1, 1.35, ramp(f, ph(5, 2) - 6, dur, inOut));
   const glitch = f > ph(5, 1) - 2 && f < ph(5, 1) + 20 ? 0.8 : f > ph(5, 1) + 20 ? 0.12 : 0;
@@ -58,7 +59,7 @@ export const S5: React.FC = () => {
         </AbsoluteFill>
       </Glitch>
       <div style={{position: 'absolute', left: 110, top: 90}}>
-        <Mono size={34} color={C.amber} style={{opacity: ramp(f, ph(5, 0) + 4, ph(5, 0) + 14)}}>● OPERATORS EVACUATED</Mono>
+        <Mono size={34} color={C.amber} style={{opacity: ramp(f, evac - 4, evac + 6)}}>● OPERATORS EVACUATED</Mono>
         <Mono size={34} color={C.red} style={{marginTop: 14, opacity: ramp(f, ph(5, 1), ph(5, 1) + 6)}}>● TELEMETRY LOST</Mono>
       </div>
       <AbsoluteFill style={{justifyContent: 'center', alignItems: 'center', background: `rgba(5,11,20,${ramp(f, ph(5, 2) - 4, ph(5, 2) + 8) * 0.72})`}}>

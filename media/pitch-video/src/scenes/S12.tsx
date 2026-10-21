@@ -23,6 +23,7 @@ export const S12: React.FC = () => {
           <Reveal text="VERIFIES BEFORE IT ACTS." at={p2} size={48} weight={500} color={C.green} stagger={0.5} />
         </div>
       </div>
+      <div style={{position: 'absolute', right: 40, bottom: 18, fontFamily: '"JetBrains Mono", monospace', fontSize: 12, color: C.dim, opacity: 0.7}}>Voiceover generated with ElevenLabs</div>
       <AbsoluteFill style={{background: '#000', opacity: end}} />
     </AbsoluteFill>
   );
