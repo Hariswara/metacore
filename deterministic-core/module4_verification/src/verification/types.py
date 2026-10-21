@@ -123,6 +123,17 @@ class RiskCertificate(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class RiskAttribution(BaseModel):
+    """One player's Shapley share of the certified risk (shares sum to k / N)."""
+
+    player: str = Field(description="A feeder-group bus or an island name from the pin")
+    island: str
+    buses: list[str] = Field(default_factory=list)
+    share: float = Field(description="Shapley value: points of failure rate this player owns")
+    fraction_of_risk: float = Field(description="share / total failure rate")
+    alone: float = Field(description="Failure rate when only this player moves")
+
+
 class VerificationVerdict(BaseModel):
     """Synchronous physical verification decision emitted to the orchestrator."""
 
@@ -139,6 +150,9 @@ class VerificationVerdict(BaseModel):
     )
     certificate: RiskCertificate | None = Field(
         default=None, description="Check B evidence; None for the plain snapshot gate"
+    )
+    attribution: list[RiskAttribution] = Field(
+        default_factory=list, description="Shapley risk shares; empty when nothing failed"
     )
 
 

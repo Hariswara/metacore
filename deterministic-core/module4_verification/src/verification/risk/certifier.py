@@ -32,10 +32,12 @@ from ..powerflow.solver import PowerFlowSolver
 from ..types import (
     Decision,
     ProposedControlAction,
+    RiskAttribution,
     RiskCertificate,
     VerificationVerdict,
     Violation,
 )
+from .attribution import coalition_values, island_subsets, players_from_pin, shapley_values
 from .bands import Band
 from .calibration import Calibration, StaleCalibrationError
 from .pid import ReplayHistory, in_storm, replay_pid
@@ -66,6 +68,7 @@ class CertifierConfig:
     seed: int | None = None  # None -> the calibration artifact's seed
     band_scale: float = 1.0  # sensitivity analysis (E5): scale both band edges
     early_stopping: bool = True
+    attribution: bool = True  # Shapley shares over the feeder players when k > 0
 
     def planned(self) -> int:
         return self.n_max or required_scenarios(self.epsilon, self.confidence)
@@ -180,6 +183,12 @@ class RiskCertifiedVerifier:
                                              scenarios)
         solve_ms += ms_t + ms_b
 
+        attribution: list[RiskAttribution] = []
+        if self.config.attribution and test.k > 0 and self.circuit.pin:
+            attribution, ms_a = self._attribute(base, load_island, adequacy, scenarios,
+                                                outcomes)
+            solve_ms += ms_a
+
         verdict_name = test.verdict()
         decision = _DECISION.get(verdict_name, Decision.DECISION_UNVERIFIED)
         lower, upper = test.bounds()
@@ -219,6 +228,7 @@ class RiskCertifiedVerifier:
             latency_ms=round(solve_ms, 3),
         )
         verdict.certificate = certificate
+        verdict.attribution = attribution
         if decision == Decision.DECISION_UNVERIFIED:
             verdict.unverified_reasons = [
                 f"risk bound straddles the target: {test.k} of {test.n} scenarios failed, "
@@ -269,34 +279,98 @@ class RiskCertifiedVerifier:
 
     def _scenario(self, base: dict[str, tuple[float, float]], load_island: dict[str, str],
                   adequacy: dict[str, dict], hi: np.ndarray, lo: np.ndarray,
-                  scenarios: ScenarioSet) -> tuple[ScenarioOutcome, float]:
+                  scenarios: ScenarioSet, moving: frozenset[str] | None = None,
+                  ) -> tuple[ScenarioOutcome, float]:
+        """Solves one scenario at its peak and its trough.
+
+        ``moving`` restricts which loads take the scenario's multipliers (attribution); the
+        rest stay at this hour's snapshot. None means every load moves.
+        """
         index = {isl: j for j, isl in enumerate(scenarios.islands)}
         islands: set[str] = set()
         violations: list[Violation] = []
         ms = 0.0
         for factors in (hi, lo) if not np.array_equal(hi, lo) else (hi,):
-            demand = {name: (p * factors[index[load_island[name]]],
-                             q * factors[index[load_island[name]]])
-                      for name, (p, q) in base.items()}
+            demand = {}
+            for name, (p, q) in base.items():
+                f = (factors[index[load_island[name]]]
+                     if moving is None or name in moving else 1.0)
+                demand[name] = (p * f, q * f)
             converged, solve_ms = PowerFlowSolver.solve_with_demand(self.circuit, demand)
             ms += solve_ms
             found = self.limits.check_limits(self.circuit, converged, adequacy=False)
-            found += self._adequacy(adequacy, factors, index)
+            found += self._adequacy(adequacy, demand, load_island)
             for v in found:
-                islands.add(self._island_of.get(v.element_id.upper(), "GLOBAL"))
+                isl = self._island_of.get(v.element_id.upper())
+                # A failure with no island (non-convergence) counts against every island.
+                islands.update([isl] if isl else scenarios.islands)
             violations.extend(found)
         return ScenarioOutcome(bool(violations), frozenset(islands), violations), ms
 
-    def _adequacy(self, parts: dict[str, dict], factors: np.ndarray,
-                  index: dict[str, int]) -> list[Violation]:
+    @staticmethod
+    def _adequacy(parts: dict[str, dict], demand: dict[str, tuple[float, float]],
+                  load_island: dict[str, str]) -> list[Violation]:
+        """Adequacy from demand already known in Python (no OpenDSS reads per scenario)."""
+        p_by: dict[str, float] = {}
+        q_by: dict[str, float] = {}
+        for name, (p, q) in demand.items():
+            isl = load_island[name]
+            p_by[isl] = p_by.get(isl, 0.0) + p
+            q_by[isl] = q_by.get(isl, 0.0) + q
         out: list[Violation] = []
-        for island, p in parts.items():
-            f = factors[index[island]]
-            demand = math.hypot(p["load_p"] * f + p["extra_p"], p["load_q"] * f + p["extra_q"])
-            if demand > p["capacity_kva"]:
-                out.append(PhysicsLimitsChecker.inadequacy(island, str(p["station"]), demand,
-                                                           float(p["capacity_kva"])))
+        for island, part in parts.items():
+            kva = math.hypot(p_by.get(island, 0.0) + part["extra_p"],
+                             q_by.get(island, 0.0) + part["extra_q"])
+            if kva > part["capacity_kva"]:
+                out.append(PhysicsLimitsChecker.inadequacy(island, str(part["station"]), kva,
+                                                           float(part["capacity_kva"])))
         return out
+
+    def _attribute(self, base: dict[str, tuple[float, float]], load_island: dict[str, str],
+                   adequacy: dict[str, dict], scenarios: ScenarioSet,
+                   outcomes: list[ScenarioOutcome]) -> tuple[list[RiskAttribution], float]:
+        """Shapley shares of the failure rate over the feeder players (risk/attribution.py)."""
+        players = players_from_pin(self.circuit.pin)
+        load_player = {}
+        for name in base:
+            bus = self.circuit.load_bus(name)
+            load_player[name] = next(i for i, p in enumerate(players) if bus in p.buses)
+        members: dict[str, frozenset[int]] = {}
+        for i, p in enumerate(players):
+            members[p.island] = members.get(p.island, frozenset()) | {i}
+
+        table: list[dict[str, dict]] = [
+            {isl: {frozenset(): False, m: isl in outcome.islands} for isl, m in members.items()}
+            for outcome in outcomes
+        ]
+        ms = 0.0
+        for config in island_subsets(players):
+            chosen = frozenset().union(*config.values())
+            moving = frozenset(n for n, i in load_player.items() if i in chosen)
+            for s in range(len(outcomes)):
+                outcome, solve_ms = self._scenario(base, load_island, adequacy,
+                                                   scenarios.hi[s], scenarios.lo[s], scenarios,
+                                                   moving)
+                ms += solve_ms
+                for isl, subset in config.items():
+                    table[s][isl][subset] = isl in outcome.islands
+
+        values = coalition_values(players, table)
+        phi = shapley_values(len(players), values)
+        total = values[frozenset(range(len(players)))]
+        result = [
+            RiskAttribution(
+                player=p.name,
+                island=p.island,
+                buses=sorted(p.buses),
+                share=round(phi[i], 6),
+                fraction_of_risk=round(phi[i] / total, 6) if total > 0 else 0.0,
+                alone=round(values[frozenset({i})], 6),
+            )
+            for i, p in enumerate(players)
+        ]
+        result.sort(key=lambda a: (-a.share, a.player))
+        return result, ms
 
 
 # ---------------------------------------------------------------------- helpers
