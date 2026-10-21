@@ -112,6 +112,7 @@ class SequentialTest:
     eps: float = EPSILON
     confidence: float = CONFIDENCE
     batch: int = BATCH
+    early: bool = True  # False runs all N regardless (to measure what early stopping saves)
     n: int = 0
     k: int = 0
     stopped_early: bool = False
@@ -131,7 +132,8 @@ class SequentialTest:
         self.n += trials
         if self.n >= self.n_max:
             return True
-        if decide(self.k, self.n, self.eps, self.confidence, self.looks) == REJECT:
+        if self.early and decide(self.k, self.n, self.eps, self.confidence,
+                                 self.looks) == REJECT:
             self.stopped_early = True
             return True
         return False

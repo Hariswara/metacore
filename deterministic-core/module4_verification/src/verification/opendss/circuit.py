@@ -260,13 +260,16 @@ class CircuitTwin:
     def set_generator_dispatch(self, node_id: str, p_kw: float, q_kvar: float = 0.0) -> bool:
         """Sets active (kW) and reactive (kvar) output on a generator or at a bus.
 
-        A generator name (e.g. ``ELU_HYB_BESS``) sets that unit. A bus name (e.g. ``NAI_PS``)
-        splits the setpoint evenly across the in-service generators on that bus, so asking a
-        station for 100 kW never produces 100 kW per unit.
+        A generator name (e.g. ``ELU_HYB_BESS``) sets that unit, if it is in service. A bus name
+        (e.g. ``NAI_PS``) splits the setpoint evenly across the in-service generators on that
+        bus, so asking a station for 100 kW never produces 100 kW per unit.
         """
         key = node_id.lower()
         if key in self._gen_bus:
-            targets = [key]
+            # A unit the snapshot took out of service cannot be dispatched: refuse the command
+            # (MALFORMED) instead of silently setting a setpoint nothing will follow.
+            dss.Circuit.SetActiveElement(f"Generator.{key}")
+            targets = [key] if dss.CktElement.Enabled() else []
         else:
             targets = []
             for name, bus in self._gen_bus.items():

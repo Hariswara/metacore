@@ -55,8 +55,14 @@ class PhysicsLimitsChecker:
     def __init__(self, config: SafetyLimitsConfig | None = None) -> None:
         self.config = config or SafetyLimitsConfig.from_profile(DEFAULT_PROFILE)
 
-    def check_limits(self, circuit: CircuitTwin, converged: bool) -> list[Violation]:
-        """Runs comprehensive checks on voltage, line loading, adequacy and convergence."""
+    def check_limits(
+        self, circuit: CircuitTwin, converged: bool, adequacy: bool = True
+    ) -> list[Violation]:
+        """Runs comprehensive checks on voltage, line loading, adequacy and convergence.
+
+        ``adequacy=False`` skips step 4 for callers that judge adequacy from demand they already
+        know (the scenario loop, risk/certifier.py).
+        """
         violations: list[Violation] = []
 
         # 1. Check AC power-flow convergence
@@ -122,67 +128,79 @@ class PhysicsLimitsChecker:
                 )
 
         # 4. Generation adequacy per island (needs the topology pin for the lead-genset ratings)
-        violations.extend(self.check_generation_adequacy(circuit))
+        if adequacy:
+            violations.extend(self.check_generation_adequacy(circuit))
 
         return violations
 
     @staticmethod
-    def island_adequacy(circuit: CircuitTwin) -> dict[str, dict[str, float | str]]:
-        """Apparent-power demand against in-service generating capacity, per island.
+    def adequacy_parts(circuit: CircuitTwin) -> dict[str, dict[str, float | str]]:
+        """Per island: station bus, capacity (kVA), load P/Q, and charging P/Q from generators.
 
         Capacity is the grid-forming lead genset's rating (from the pin; the model holds it as a
         stiff source) plus the kVA of every in-service Generator that is not absorbing power.
-        Demand is every load plus anything charging (a battery with negative kW). Returns {} for
+        Anything charging (a battery with negative kW) counts as demand instead. Returns {} for
         a model without a pin.
         """
         if not circuit.pin:
             return {}
         bus_island = {b["node_id"].upper(): b["island"] for b in circuit.pin["buses"]}
-        station: dict[str, str] = {}
-        cap: dict[str, float] = {}
-        p_dem: dict[str, float] = {}
-        q_dem: dict[str, float] = {}
+        parts: dict[str, dict[str, float | str]] = {}
+
+        def part(island: str) -> dict[str, float | str]:
+            return parts.setdefault(island, {"station": island, "capacity_kva": 0.0,
+                                             "load_p": 0.0, "load_q": 0.0,
+                                             "extra_p": 0.0, "extra_q": 0.0})
+
         for a in circuit.pin["assets"]:
             if a.get("grid_forming") and a.get("in_service", True):
-                island = a["island"]
-                cap[island] = cap.get(island, 0.0) + float(a["rating_kva"])
-                station[island] = a["bus"].upper()
-        for name, (p, q) in circuit.get_load_demand().items():
-            island = bus_island[circuit.load_bus(name)]
-            p_dem[island] = p_dem.get(island, 0.0) + p
-            q_dem[island] = q_dem.get(island, 0.0) + q
+                p = part(a["island"])
+                p["capacity_kva"] += float(a["rating_kva"])
+                p["station"] = a["bus"].upper()
+        for name, (pk, qk) in circuit.get_load_demand().items():
+            p = part(bus_island[circuit.load_bus(name)])
+            p["load_p"] += pk
+            p["load_q"] += qk
         for name, g in circuit.get_generator_states().items():
             if g["enabled"] < 0.5:
                 continue
-            island = bus_island[circuit.generator_bus(name)]
+            p = part(bus_island[circuit.generator_bus(name)])
             if g["p_kw"] < 0.0:
-                p_dem[island] = p_dem.get(island, 0.0) - g["p_kw"]
-                q_dem[island] = q_dem.get(island, 0.0) + max(0.0, -g["q_kvar"])
+                p["extra_p"] -= g["p_kw"]
+                p["extra_q"] += max(0.0, -g["q_kvar"])
             else:
-                cap[island] = cap.get(island, 0.0) + g["kva"]
+                p["capacity_kva"] += g["kva"]
+        return dict(sorted(parts.items()))
+
+    @staticmethod
+    def island_adequacy(circuit: CircuitTwin) -> dict[str, dict[str, float | str]]:
+        """Apparent-power demand against in-service generating capacity, per island."""
         return {
             island: {
-                "station": station.get(island, island),
-                "demand_kva": math.hypot(p_dem.get(island, 0.0), q_dem.get(island, 0.0)),
-                "capacity_kva": cap[island],
+                "station": p["station"],
+                "demand_kva": math.hypot(float(p["load_p"]) + float(p["extra_p"]),
+                                         float(p["load_q"]) + float(p["extra_q"])),
+                "capacity_kva": float(p["capacity_kva"]),
             }
-            for island in sorted(cap)
+            for island, p in PhysicsLimitsChecker.adequacy_parts(circuit).items()
         }
+
+    @staticmethod
+    def inadequacy(island: str, station: str, demand: float, capacity: float) -> Violation:
+        return Violation(
+            type=ViolationType.VIOLATION_TYPE_GENERATION_INADEQUATE,
+            element_id=station,
+            limit=round(capacity, 2),
+            measured=round(demand, 2),
+            margin_fraction=round((demand - capacity) / capacity, 4),
+            attributed_component=f"island.{island}",
+        )
 
     def check_generation_adequacy(self, circuit: CircuitTwin) -> list[Violation]:
         """One GENERATION_INADEQUATE violation per island whose demand exceeds its capacity."""
-        violations: list[Violation] = []
-        for island, a in self.island_adequacy(circuit).items():
-            demand, capacity = float(a["demand_kva"]), float(a["capacity_kva"])
-            if demand > capacity:
-                violations.append(
-                    Violation(
-                        type=ViolationType.VIOLATION_TYPE_GENERATION_INADEQUATE,
-                        element_id=str(a["station"]),
-                        limit=round(capacity, 2),
-                        measured=round(demand, 2),
-                        margin_fraction=round((demand - capacity) / capacity, 4),
-                        attributed_component=f"island.{island}",
-                    )
-                )
-        return violations
+        return [
+            self.inadequacy(island, str(a["station"]), float(a["demand_kva"]),
+                            float(a["capacity_kva"]))
+            for island, a in self.island_adequacy(circuit).items()
+            if float(a["demand_kva"]) > float(a["capacity_kva"])
+        ]

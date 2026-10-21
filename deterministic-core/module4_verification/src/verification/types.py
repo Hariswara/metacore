@@ -91,6 +91,38 @@ class ProposedControlAction(BaseModel):
     rationale: str = ""
 
 
+class RiskCertificate(BaseModel):
+    """Check B's evidence: k of N likely next-hour conditions broke a limit, with exact bounds.
+
+    Everything needed to replay the verdict is here (calibration hash, seed, band, PID state);
+    nothing time-dependent is, so the same input gives a byte-identical certificate.
+    """
+
+    decision: Decision
+    n_scenarios: int = Field(ge=0, description="Scenarios evaluated (N, or fewer if stopped)")
+    n_max: int = Field(ge=0, description="Planned scenarios (688 for 1 % at 99.9 %)")
+    n_failures: int = Field(ge=0, description="Scenarios that broke at least one limit (k)")
+    lower_bound: float = Field(ge=0.0, le=1.0, description="Clopper-Pearson lower bound on p")
+    upper_bound: float = Field(ge=0.0, le=1.0, description="Clopper-Pearson upper bound on p")
+    epsilon: float = Field(description="Risk target")
+    confidence: float
+    stopped_early: bool = False
+    horizon_h: int
+    limit_profile: str
+    calibration_version: str
+    calibration_sha256: str
+    seed: int
+    timestamp: str = Field(description="The recorded hour the snapshot describes")
+    situation: dict[str, str | int] = Field(default_factory=dict)
+    band: dict[str, float | int | str] = Field(default_factory=dict)
+    pid: dict[str, float | int | bool] | None = None
+    corner_top_safe: bool | None = None
+    corner_bottom_safe: bool | None = None
+    failures_by_island: dict[str, int] = Field(default_factory=dict)
+    failing_elements: dict[str, int] = Field(default_factory=dict)
+    notes: list[str] = Field(default_factory=list)
+
+
 class VerificationVerdict(BaseModel):
     """Synchronous physical verification decision emitted to the orchestrator."""
 
@@ -104,6 +136,9 @@ class VerificationVerdict(BaseModel):
     )
     unverified_reasons: list[str] = Field(
         default_factory=list, description="Why the verdict is UNVERIFIED (empty otherwise)"
+    )
+    certificate: RiskCertificate | None = Field(
+        default=None, description="Check B evidence; None for the plain snapshot gate"
     )
 
 

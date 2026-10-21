@@ -106,3 +106,12 @@ def test_dispatching_a_standby_genset_does_not_change_capacity() -> None:
     action = ProposedControlAction(
         action_id="dg2-on", dispatch=[DispatchSetpoint(node_id="NAI_DG2", p_kw=100.0)])
     assert PhysicsVerifier().verify(action).decision == Decision.DECISION_APPROVE
+
+
+def test_dispatching_an_out_of_service_unit_is_malformed() -> None:
+    """Ditwah: the hybrid is down, so a battery setpoint would be silently ignored otherwise."""
+    action = ProposedControlAction(
+        action_id="bess-on", dispatch=[DispatchSetpoint(node_id="ELU_HYB_BESS", p_kw=20.0)])
+    verdict = PhysicsVerifier().verify(action, snapshot=sample("ditwah_evening"))
+    assert verdict.decision == Decision.DECISION_REJECT
+    assert verdict.violations[0].type == ViolationType.VIOLATION_TYPE_MALFORMED_ACTION

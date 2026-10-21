@@ -8,6 +8,7 @@ from .firewall.verifier import PhysicsVerifier
 from .opendss.circuit import CircuitTwin
 from .powerflow.action_applicator import ActionApplicator
 from .powerflow.solver import PowerFlowSolver
+from .risk.certifier import CertifierConfig, RiskCertifiedVerifier
 from .types import (
     BreakerCommand,
     Decision,
@@ -16,6 +17,7 @@ from .types import (
     ProcessPath,
     ProposedControlAction,
     RejectionTrace,
+    RiskCertificate,
     VerificationVerdict,
     Violation,
     ViolationType,
@@ -28,6 +30,9 @@ __all__ = [
     "PhysicsLimitsChecker",
     "SafetyLimitsConfig",
     "PhysicsVerifier",
+    "RiskCertifiedVerifier",
+    "CertifierConfig",
+    "RiskCertificate",
     "Decision",
     "ViolationType",
     "Violation",

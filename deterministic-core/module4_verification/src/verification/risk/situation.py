@@ -55,26 +55,32 @@ def hazard_bucket(level: int) -> str:
 
 @dataclass(frozen=True)
 class Situation:
-    """Where a verify call sits: its start hour, season and hazard level (0..3)."""
+    """Where a verify call sits: its start hour, season and hazard level (0..3).
+
+    ``hazard_level=None`` means the hazard tag is missing for this hour: the lookup then starts
+    at the group without hazard rather than guessing a level.
+    """
 
     hour: int
     season: str
-    hazard_level: int = 0
+    hazard_level: int | None = 0
 
     @classmethod
-    def at(cls, timestamp: str, hazard_level: int = 0) -> Situation:
+    def at(cls, timestamp: str, hazard_level: int | None = 0) -> Situation:
         return cls(hour=hour_of(timestamp), season=season_of(timestamp),
                    hazard_level=hazard_level)
+
+    @property
+    def hazard_name(self) -> str:
+        return "UNKNOWN" if self.hazard_level is None else HAZARD_LEVELS[self.hazard_level]
 
     def keys(self) -> list[str]:
         """Group keys from narrowest to widest; bands.py takes the first with enough rows."""
         h = f"h{self.hour:02d}"
-        return [
-            f"{h}|{self.season}|{hazard_bucket(self.hazard_level)}",
-            f"{h}|{self.season}",
-            h,
-            "all",
-        ]
+        wider = [f"{h}|{self.season}", h, "all"]
+        if self.hazard_level is None:
+            return wider
+        return [f"{h}|{self.season}|{hazard_bucket(self.hazard_level)}", *wider]
 
 
 # ------------------------------------------------------------------------------------ hazard
